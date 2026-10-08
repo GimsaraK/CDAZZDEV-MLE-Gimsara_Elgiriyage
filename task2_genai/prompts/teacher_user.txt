@@ -1,0 +1,5 @@
+Write 5 examples for this cell.
+topic: {topic}
+situation: {situation}
+policy_ids rule: {id_rule}
+scenario length: {length_hint}

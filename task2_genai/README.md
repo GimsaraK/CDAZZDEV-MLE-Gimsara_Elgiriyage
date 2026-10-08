@@ -26,28 +26,30 @@ An end-to-end QLoRA fine-tuning pipeline for a domain-specific task, covering us
 
 ### Problem Statement
 
+Closed-book assistant for the fictional company Northwind Components. The user turn is a scenario only. The manual is not pasted in, so the model has to apply the rules it was trained on. The manual is fictional and is not legal advice.
+
 | | |
 |---|---|
-| Use case | _TBD_ |
-| Input | _TBD_ |
-| Output | _TBD_ |
-| Correct response | _TBD_ |
-| Incorrect response | _TBD_ |
+| Use case | Compliance policy assistance |
+| Input | One employee scenario (who did what, and what they want) |
+| Output | JSON with `policy_ids`, `required_action`, and `rationale` |
+| Correct response | Every id is in the manual, or `["NONE"]` when no rule applies, and the action is the one that clause states |
+| Incorrect response | An unknown id, the wrong clause, an action the clause does not allow, or an invented rule |
 
 ### Dataset
 
 | Item | Value |
 |---|---|
-| Teacher model | _TBD_ |
-| Student (base) model | _TBD_ |
-| Total examples | _TBD_ |
-| Train / Val / Test (80 / 10 / 10) | _TBD_ / _TBD_ / _TBD_ |
+| Teacher model | Groq `openai/gpt-oss-120b` (OpenRouter only if validation fails) |
+| Student (base) model | `Qwen/Qwen2.5-1.5B-Instruct` (chat template only in 2A; training is 2B) |
+| Total examples | 200 accepted after schema and duplicate checks |
+| Train / Val / Test (80 / 10 / 10) | 160 / 20 / 20 |
 
-Diversity analysis (prompt length distribution, keyword / topic frequency) is in the notebook and `outputs/`.
+Eight policy topics are crossed with five situation types (clear breach, borderline, compliant, not covered, two-policy), 25 examples each. Scenario length runs from 40 to 149 words (median 64). Exact-duplicate drops were 0 and character 5-gram near-duplicate drops were 0 (Jaccard threshold 0.80). Two teacher responses needed a repair call. Diversity charts are in `outputs/`.
 
 ### Teacher System Prompt
 
-The full system prompt used for data generation is in [`prompts/`](prompts/) and reproduced in the notebook appendix.
+The full system prompt, including the policy manual, is in [`prompts/teacher_system.txt`](prompts/teacher_system.txt) and in appendix A of the notebook. The student system prompt is a different file, [`prompts/student_system.txt`](prompts/student_system.txt).
 
 ## 2B - Fine-Tuning
 
@@ -55,17 +57,34 @@ QLoRA with 4-bit NF4 quantization and PEFT LoRA adapters, merged with `merge_and
 
 | Parameter | Value | Reason |
 |---|---|---|
-| LoRA rank (r) | _TBD_ | _TBD_ |
-| LoRA alpha | _TBD_ | _TBD_ |
-| Target modules | _TBD_ | _TBD_ |
-| Learning rate | _TBD_ | _TBD_ |
-| LR scheduler | _TBD_ | _TBD_ |
-| Epochs | _TBD_ | _TBD_ |
-| Batch size | _TBD_ | _TBD_ |
-| Gradient accumulation steps | _TBD_ | _TBD_ |
-| Max sequence length | _TBD_ | _TBD_ |
+| 4-bit load | true | QLoRA keeps the base weights in 4-bit so a 1.5B model fits a free T4. |
+| Quant type | nf4 | NF4 is the QLoRA 4-bit type. It is not the default int4. |
+| Double quantization | true | A second quantization of the quantization constants saves more T4 memory. |
+| Compute dtype | float16 | T4 has no bfloat16. Forward and backward math stays in float16. |
+| LoRA rank (r) | 16 | Rank 16 is enough for 160 short JSON answers without a large adapter. |
+| LoRA alpha | 32 | Alpha is 2x rank, the usual QLoRA scale, so the update is not tiny. |
+| LoRA dropout | 0.05 | 0.05 limits memorizing the wording of 160 training scenarios. |
+| LoRA bias | none | QLoRA does not train bias terms. The adapter is the weight update only. |
+| Target modules | q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj | Attention and MLP projections. Attention alone under-uses a 1.5B model on this task. |
+| Learning rate | 2e-4 | Standard QLoRA rate for a small instruct model. Higher overfits 160 rows. |
+| LR scheduler | cosine | Cosine decay after warmup. A constant rate keeps stepping hard at the end of 3 epochs. |
+| Warmup ratio | 0.03 | 3 percent of steps ramp the rate so the first updates are not full size. |
+| Epochs | 3 | Three epochs give validation loss more than one step in which to fall. |
+| Batch size | 1 | One example per step. A larger microbatch is the first thing that OOMs on a T4. |
+| Gradient accumulation steps | 8 | Effective batch of 8. One epoch is about 20 optimizer steps. |
+| Max sequence length | 512 | 512 covers a 149-word scenario plus the prompt. A longer tokenized train row raises the cap to 768. An out-of-memory retry drops it to 384. |
+| Pad token | tokenizer pad (EOS if none) | Qwen2.5 ships endoftext as its pad token. A tokenizer without one pads with EOS. Padded positions are masked from attention and loss. |
+| Optimizer | paged_adamw_8bit | 8-bit paged AdamW keeps optimizer state off the T4 when memory spikes. |
+| Weight decay | 0.01 | Light decay. The set is small, so zero decay memorizes more easily. |
+| Gradient checkpointing | true | Recomputes activations. This is what makes the MLP adapters fit. |
+| Packing | false | Rows stay separate. Packing would glue two scenarios into one sequence. |
+| Loss mask | assistant tokens only | The system and user turns are context. The loss is the JSON answer. The mask is built in qlora.py because TRL 0.20 dropped its completion-only collator. |
+| Eval and save | every epoch | One validation number per epoch, which is what the loss rubric asks for. |
+| Best checkpoint | lowest eval loss | The merge uses that checkpoint, not whatever the last epoch happened to be. |
+| Seed | 42 | Fixed seed so the same notebook run is repeatable. |
+| Merge dtype | float16 base, not 4-bit | merge_and_unload on a 4-bit model is unreliable. The base is reloaded in float16. |
 
-The full table, including every non-default parameter, is in the notebook.
+The same rows are printed from `src/train_config.py` in the notebook. The trainer reads `train.jsonl` and `val.jsonl` only.
 
 ### Training Loss
 
@@ -73,16 +92,53 @@ The full table, including every non-default parameter, is in the notebook.
 |---|---|---|
 | _TBD_ | | |
 
+Filled after the Colab T4 run. The notebook saves `outputs/loss_history.json` and `outputs/loss_curve.png`.
+
 ### Out-of-Memory Log
 
-_Document any OOM errors, what was attempted, and the fix applied._
+If the T4 runs out of memory, section 7 retries in this order and records which step finished:
+
+1. Max length 512 (768 only if a train row does not fit), LoRA on attention and MLP.
+2. Max length 384, same modules.
+3. Max length 384, attention projections only.
+
+The post-run line is written when the notebook is saved from Colab. No failure is invented before that run.
 
 ## 2C - Evaluation
 
-| Metric (test set) | Base model + system prompt | Fine-tuned model |
+Both models answer the same 20 held-out rows from `test.jsonl`, with the same system and user turns. The base model gets the system prompt and no fine-tuning. Both run in float16 with plain greedy decoding (max 256 new tokens, repetition penalty off). The fine-tuned model is loaded from the Hub repo, or from the merged folder of section 8 if the push did not happen. Per-row answers are saved to `outputs/eval_predictions.jsonl`.
+
+| Metric (test set, n=20) | Base model + system prompt | Fine-tuned model |
 |---|---|---|
-| ROUGE-L | _TBD_ | _TBD_ |
-| _BERTScore F1 / LLM-as-judge_ | _TBD_ | _TBD_ |
+| ROUGE-L F1, whole answer (canonical JSON) | _TBD_ | _TBD_ |
+| ROUGE-L F1, `required_action` field | _TBD_ | _TBD_ |
+| ROUGE-L F1, `rationale` field | _TBD_ | _TBD_ |
+| BERTScore F1 (`roberta-large`) | _TBD_ | _TBD_ |
+| LLM judge total, mean of 8 | _TBD_ | _TBD_ |
+| Valid JSON, strict (%) | _TBD_ | _TBD_ |
+| `policy_ids` exact match (%) | _TBD_ | _TBD_ |
+| Answers with an id not in the manual (%) | _TBD_ | _TBD_ |
+| `NONE` on not-covered rows (%), n=4 | _TBD_ | _TBD_ |
+
+- **ROUGE-L** is computed on the answer in canonical form (compact JSON with sorted keys, the form the gold answers use), so key order and whitespace do not cost points. It is also computed on the two text fields alone.
+- **BERTScore F1** uses `roberta-large` on the same canonical text.
+- **LLM judge:** `google/gemma-4-31b-it:free` on OpenRouter, with `nvidia/nemotron-3-super-120b-a12b:free` (also OpenRouter) grading only the rows Gemma could not, after one repair attempt. Each verdict records its grader.
+  - Neither judge is the Qwen student or the gpt-oss teacher that wrote the references. Gemma is listed as the 2A backup teacher but wrote none of the dataset (`fallback_calls` is 0 in `outputs/generation_report.json`).
+  - Groq's free catalogue only offers gpt-oss and Qwen models, so both judges run on OpenRouter and share its free-tier limits. Saved verdicts are reused, so a re-run only grades the missing rows.
+  - The judge sees the manual, the scenario, the reference, and one answer, and is not told which model wrote it.
+  - It returns four 0-2 scores as Pydantic-validated JSON: `policy_correct`, `action_faithful`, `rationale_grounded`, `no_invention`. The total out of 8 is summed in code.
+  - Full prompt: [`prompts/judge_system.txt`](prompts/judge_system.txt). Per-row verdicts: `outputs/judge_scores.jsonl`.
+- **Domain checks** need no model. They read the answer JSON and compare it with the gold label and the manual.
+
+### Manual Review and Hallucination Rate
+
+All 20 fine-tuned answers are reviewed by hand against the policy manual (the spec minimum is 10). The manual wins over the expected answer, because the expected answers were written by the teacher and can be wrong. The notebook suggests a label from the domain checks and the judge; the reviewer sets every final label, and the notebook table marks each override. Labels are in `outputs/manual_review.json`.
+
+| Label | Rule |
+|---|---|
+| correct | The `policy_ids` are the right ones under the manual, and the action is one the clause allows |
+| partially correct | A real, relevant policy, but the action is incomplete or slightly off, or one of two ids is missing. Nothing is invented |
+| hallucinated | An id not in the manual, an invented rule, limit, or deadline, a wrong policy stated as applying, `NONE` when a policy applies, a policy cited for an uncovered case, or no usable JSON |
 
 | Manual review | Value |
 |---|---|
@@ -90,14 +146,10 @@ _Document any OOM errors, what was attempted, and the fix applied._
 | Correct / Partially correct / Hallucinated | _TBD_ |
 | Hallucination rate | _TBD_ % |
 
-Qualitative analysis is in the notebook.
-
-## Bonus - RAG Fallback
-
-_TBD_
+Qualitative analysis (two paragraphs, citing specific test rows) is in section 13 of the notebook.
 
 ## How to Run
 
 1. Open the notebook with the Colab badge above and select a **T4 GPU** runtime.
-2. Add `HF_TOKEN`, `GROQ_API_KEY` / `OPENROUTER_API_KEY`, and optionally `WANDB_API_KEY` in the Colab Secrets panel.
+2. Add `HF_TOKEN`, `GROQ_API_KEY`, and `OPENROUTER_API_KEY` in the Colab Secrets panel.
 3. Run all cells.

@@ -9,7 +9,7 @@ The assessment has three independent tasks covering Financial AI, Generative AI,
 | Task | Domain | Folder | Notebook | Status |
 |---|---|---|---|---|
 | Task 1 | Financial AI - LLM-powered equity research assistant | [`task1_financial/`](task1_financial/) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage/blob/main/task1_financial/task1_equity_research.ipynb) | 1A, 1B, and the research brief done locally |
-| Task 2 | Generative AI - domain-specific QLoRA fine-tuning pipeline | [`task2_genai/`](task2_genai/) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage/blob/main/task2_genai/task2_finetuning.ipynb) | In progress |
+| Task 2 | Generative AI - domain-specific QLoRA fine-tuning pipeline | [`task2_genai/`](task2_genai/) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage/blob/main/task2_genai/task2_finetuning.ipynb) | 2A dataset done; 2B training and 2C evaluation notebook ready for a Colab T4 run |
 | Task 3 | Agentic Workflows - multi-agent financial research system | [`task3_agentic/`](task3_agentic/) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage/blob/main/task3_agentic/task3_multi_agent.ipynb) | In progress |
 
 ## Submission Links
@@ -88,7 +88,7 @@ No API keys or tokens are stored in this repository. Every notebook reads creden
 
 ## Free-Tier Tooling
 
-Everything runs on free tiers: Google Colab, Groq / OpenRouter free models, Hugging Face Hub, yfinance, ChromaDB (local), LangChain / LangGraph / CrewAI, Weights & Biases (personal), and duckduckgo-search.
+Everything runs on free tiers: Google Colab, Groq / OpenRouter free models, Hugging Face Hub, yfinance, LangChain / LangGraph / CrewAI, Weights & Biases (personal), and duckduckgo-search.
 
 ## Citations and Reflection
 

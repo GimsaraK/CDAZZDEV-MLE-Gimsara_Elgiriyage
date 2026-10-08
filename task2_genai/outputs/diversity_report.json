@@ -1,0 +1,109 @@
+{
+  "length_words": {
+    "n": 200,
+    "min": 40,
+    "median": 64.0,
+    "p90": 96.0,
+    "max": 149,
+    "mean": 68.0
+  },
+  "topic_counts": {
+    "acceptable_use": 25,
+    "expenses": 25,
+    "gifts": 25,
+    "leave": 25,
+    "privacy": 25,
+    "remote": 25,
+    "reporting": 25,
+    "safety": 25
+  },
+  "situation_counts": {
+    "borderline": 40,
+    "clear_breach": 40,
+    "compliant": 40,
+    "not_covered": 40,
+    "two_policy": 40
+  },
+  "top_keywords": [
+    {
+      "token": "company",
+      "count": 135
+    },
+    {
+      "token": "personal",
+      "count": 128
+    },
+    {
+      "token": "laptop",
+      "count": 79
+    },
+    {
+      "token": "policy",
+      "count": 73
+    },
+    {
+      "token": "manager",
+      "count": 70
+    },
+    {
+      "token": "also",
+      "count": 60
+    },
+    {
+      "token": "software",
+      "count": 56
+    },
+    {
+      "token": "expense",
+      "count": 53
+    },
+    {
+      "token": "gift",
+      "count": 52
+    },
+    {
+      "token": "days",
+      "count": 49
+    },
+    {
+      "token": "client",
+      "count": 49
+    },
+    {
+      "token": "leave",
+      "count": 48
+    },
+    {
+      "token": "claim",
+      "count": 47
+    },
+    {
+      "token": "approval",
+      "count": 47
+    },
+    {
+      "token": "data",
+      "count": 46
+    },
+    {
+      "token": "customer",
+      "count": 44
+    },
+    {
+      "token": "work",
+      "count": 44
+    },
+    {
+      "token": "request",
+      "count": 43
+    },
+    {
+      "token": "use",
+      "count": 43
+    },
+    {
+      "token": "day",
+      "count": 42
+    }
+  ]
+}
