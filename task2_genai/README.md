@@ -8,8 +8,8 @@ An end-to-end QLoRA fine-tuning pipeline for a domain-specific task, covering us
 
 | Item | Link |
 |---|---|
-| Fine-tuned (merged) model | _TBD - Hugging Face Hub_ |
-| W&B run (if used) | _TBD_ |
+| Fine-tuned (merged) model | [huggingface.co/GimsaraK/northwind-compliance-qwen2.5-1.5b](https://huggingface.co/GimsaraK/northwind-compliance-qwen2.5-1.5b) (public) |
+| Experiment tracking | Not used. Loss is logged per epoch and plotted with matplotlib in the notebook |
 
 ## Contents
 
@@ -91,9 +91,11 @@ The same rows are printed from `src/train_config.py` in the notebook. The traine
 
 | Epoch | Train loss | Val loss |
 |---|---|---|
-| _TBD_ | | |
+| 1 | 1.495 | 0.673 |
+| 2 | 0.592 | 0.417 |
+| 3 | 0.337 | 0.361 |
 
-Filled after the Colab T4 run. The notebook saves `outputs/loss_history.json` and `outputs/loss_curve.png`.
+Validation loss fell every epoch, from 0.673 to 0.361. The gap to train loss widens in epoch 3 (0.337 vs 0.361), so a fourth epoch would likely start to overfit 160 rows. Logged by the Colab T4 run in `outputs/loss_history.json` and plotted in `outputs/loss_curve.png`. The merged model card is on the Hub.
 
 ### Out-of-Memory Log
 
@@ -103,7 +105,7 @@ If the T4 runs out of memory, section 7 retries in this order and records which 
 2. Max length 384, same modules.
 3. Max length 384, attention projections only.
 
-The post-run line is written when the notebook is saved from Colab. No failure is invented before that run.
+Result of the Colab T4 run: no out-of-memory error. Step 0 finished (max length 512, all 7 target modules). The longest train row is 372 tokens, so nothing was truncated.
 
 ## 2C - Evaluation
 
@@ -111,21 +113,28 @@ Both models answer the same 20 held-out rows from `test.jsonl`, with the same sy
 
 | Metric (test set, n=20) | Base model + system prompt | Fine-tuned model |
 |---|---|---|
-| ROUGE-L F1, whole answer (canonical JSON) | _TBD_ | _TBD_ |
-| ROUGE-L F1, `required_action` field | _TBD_ | _TBD_ |
-| ROUGE-L F1, `rationale` field | _TBD_ | _TBD_ |
-| BERTScore F1 (`roberta-large`) | _TBD_ | _TBD_ |
-| LLM judge total, mean of 8 | _TBD_ | _TBD_ |
-| Valid JSON, strict (%) | _TBD_ | _TBD_ |
-| `policy_ids` exact match (%) | _TBD_ | _TBD_ |
-| Answers with an id not in the manual (%) | _TBD_ | _TBD_ |
-| `NONE` on not-covered rows (%), n=4 | _TBD_ | _TBD_ |
+| ROUGE-L F1, whole answer (canonical JSON) | 0.254 | **0.581** |
+| ROUGE-L F1, `required_action` field | 0.171 | **0.582** |
+| ROUGE-L F1, `rationale` field | 0.180 | **0.425** |
+| BERTScore F1 (`roberta-large`) | 0.885 | **0.941** |
+| LLM judge total, mean of 8 | 2.15 | **5.20** |
+| Judge: `policy_correct`, mean of 2 | 0.30 | **1.50** |
+| Judge: `action_faithful`, mean of 2 | 0.35 | **1.20** |
+| Judge: `rationale_grounded`, mean of 2 | 0.70 | **1.20** |
+| Judge: `no_invention`, mean of 2 | 0.80 | **1.30** |
+| Valid JSON, strict (%) | 0 | **100** |
+| `policy_ids` exact match (%) | 20 | **80** |
+| Answers with an id not in the manual (%) | **0** | 5 |
+| `NONE` on not-covered rows (%), n=4 | **100** | 75 |
+
+The base model wraps every answer in a markdown fence, so none is strict JSON. Its fields are still scored after the fence is stripped. Without the manual it answers `["NONE"]` on all 20 rows, which is why it scores 100% on the four not-covered rows and 20% on exact ids (those same four rows). The fine-tuned model names the right policy on 80% of rows, but one answer uses an id that is not in the manual and one not-covered row gets a real policy.
 
 - **ROUGE-L** is computed on the answer in canonical form (compact JSON with sorted keys, the form the gold answers use), so key order and whitespace do not cost points. It is also computed on the two text fields alone.
 - **BERTScore F1** uses `roberta-large` on the same canonical text.
 - **LLM judge:** `google/gemma-4-31b-it:free` on OpenRouter, with `nvidia/nemotron-3-super-120b-a12b:free` (also OpenRouter) grading only the rows Gemma could not, after one repair attempt. Each verdict records its grader.
   - Neither judge is the Qwen student or the gpt-oss teacher that wrote the references. Gemma is listed as the 2A backup teacher but wrote none of the dataset (`fallback_calls` is 0 in `outputs/generation_report.json`).
   - Groq's free catalogue only offers gpt-oss and Qwen models, so both judges run on OpenRouter and share its free-tier limits. Saved verdicts are reused, so a re-run only grades the missing rows.
+  - In the saved run, Gemma returned HTTP 429 (rate limited) on every call, so Nemotron graded all 40 answers (20 base, 20 fine-tuned). No answer was left unjudged. The grader of each verdict is in `outputs/judge_scores.jsonl`.
   - The judge sees the manual, the scenario, the reference, and one answer, and is not told which model wrote it.
   - It returns four 0-2 scores as Pydantic-validated JSON: `policy_correct`, `action_faithful`, `rationale_grounded`, `no_invention`. The total out of 8 is summed in code.
   - Full prompt: [`prompts/judge_system.txt`](prompts/judge_system.txt). Per-row verdicts: `outputs/judge_scores.jsonl`.
@@ -143,11 +152,15 @@ All 20 fine-tuned answers are reviewed by hand against the policy manual (the sp
 
 | Manual review | Value |
 |---|---|
-| Responses reviewed | _TBD_ |
-| Correct / Partially correct / Hallucinated | _TBD_ |
-| Hallucination rate | _TBD_ % |
+| Responses reviewed | 20 of 20 fine-tuned answers |
+| Correct / Partially correct / Hallucinated | 7 / 4 / 9 |
+| Hallucination rate | **45%** (9 of 20) |
 
-Qualitative analysis (two paragraphs, citing specific test rows) is in section 13 of the notebook.
+- Correct: rows 1, 3, 10, 11, 14, 15, 18. Partially correct: rows 5, 8, 9, 12. Hallucinated: rows 0, 2, 4, 6, 7, 13, 16, 17, 19.
+- The review overrode the suggested label on 5 rows (4, 7, 9, 11, 16). Each row's label and note are in `outputs/manual_review.json` and in the section 12 table.
+- The rubric is strict: an answer with the right policy and action still counts as hallucinated if it adds a rule, deadline, or consequence the manual does not contain (rows 6 and 7).
+
+Qualitative analysis (two paragraphs, citing specific test rows) is in section 13 of the notebook. In short: fine-tuning taught the model the manual (exact policy ids 20% to 80%, valid JSON 0% to 100%), and the remaining errors are confusion between look-alike clauses, one clause's action leaking into another, and invented specifics in the rationale.
 
 ## How to Run
 
