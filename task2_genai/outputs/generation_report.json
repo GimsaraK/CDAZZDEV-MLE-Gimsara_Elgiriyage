@@ -1,0 +1,15 @@
+{
+  "returned": 200,
+  "schema_rejected": 0,
+  "exact_dropped": 0,
+  "near_dropped": 0,
+  "accepted": 200,
+  "repair_calls": 2,
+  "fallback_calls": 0,
+  "provider_failed": 0,
+  "train": 160,
+  "val": 20,
+  "test": 20,
+  "teacher_model": "openai/gpt-oss-120b",
+  "student_model": "Qwen/Qwen2.5-1.5B-Instruct"
+}

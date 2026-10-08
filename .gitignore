@@ -57,12 +57,11 @@ task2_genai/outputs/checkpoints/
 offload/
 
 # ---------------------------------------------------------------
-# Experiment tracking and vector stores (rebuildable)
+# Experiment tracking (rebuildable)
 # ---------------------------------------------------------------
 wandb/
 mlruns/
 lightning_logs/
-chroma_db/
 *.sqlite3
 
 # ---------------------------------------------------------------

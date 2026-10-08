@@ -16,6 +16,7 @@ groq
 openai
 pydantic
 python-dotenv
+tenacity
 
 # Evaluation
 evaluate
@@ -30,6 +31,3 @@ pandas
 numpy
 matplotlib
 
-# RAG fallback (bonus)
-chromadb
-sentence-transformers
