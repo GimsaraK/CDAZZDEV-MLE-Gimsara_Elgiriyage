@@ -1,0 +1,14 @@
+[
+  {
+    "uuid": "l1",
+    "title": "Apple shares rise after earnings beat",
+    "publisher": "CNBC",
+    "link": "https://example.com/earnings-beat",
+    "providerPublishTime": 1791100800
+  },
+  {
+    "uuid": "l2",
+    "publisher": "No Title Wire",
+    "link": "https://example.com/missing-title"
+  }
+]

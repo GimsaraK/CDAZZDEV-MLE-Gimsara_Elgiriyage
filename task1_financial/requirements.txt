@@ -1,0 +1,33 @@
+# Task 1 - Financial AI
+# Pin exact versions (pip freeze) after the final Colab run.
+
+# Market data and numerics
+yfinance
+pandas
+numpy
+
+# News retrieval (Google News RSS fallback)
+feedparser
+requests
+
+# Robustness
+tenacity
+
+# LLM inference (Groq / OpenRouter via OpenAI-compatible API)
+groq
+openai
+
+# Structured output validation
+pydantic
+
+# Configuration
+python-dotenv
+
+# Report rendering (bonus)
+matplotlib
+markdown
+jinja2
+
+# Testing and indicator cross-validation (ta is used only to verify our implementation)
+pytest
+ta

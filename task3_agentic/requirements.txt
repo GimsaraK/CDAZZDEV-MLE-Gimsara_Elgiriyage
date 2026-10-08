@@ -1,0 +1,26 @@
+# Task 3 - Agentic Workflows
+# Pin exact versions (pip freeze) after the final Colab run.
+
+# Agent framework
+langchain
+langchain-core
+langgraph
+langchain-groq
+langchain-openai
+# crewai
+
+# Tools
+yfinance
+pandas
+numpy
+duckduckgo-search
+
+# LLM inference and structured output
+groq
+openai
+pydantic
+python-dotenv
+
+# Observability (bonus)
+langsmith
+streamlit
