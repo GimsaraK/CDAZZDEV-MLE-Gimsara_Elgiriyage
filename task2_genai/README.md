@@ -61,6 +61,7 @@ QLoRA with 4-bit NF4 quantization and PEFT LoRA adapters, merged with `merge_and
 | Quant type | nf4 | NF4 is the QLoRA 4-bit type. It is not the default int4. |
 | Double quantization | true | A second quantization of the quantization constants saves more T4 memory. |
 | Compute dtype | float16 | T4 has no bfloat16. Forward and backward math stays in float16. |
+| Load dtype / adapter dtype | float16 / float32 | Unquantized layers load in float16, not Qwen's bfloat16 default. LoRA weights stay float32 because the float16 GradScaler cannot unscale bfloat16 or float16 gradients. |
 | LoRA rank (r) | 16 | Rank 16 is enough for 160 short JSON answers without a large adapter. |
 | LoRA alpha | 32 | Alpha is 2x rank, the usual QLoRA scale, so the update is not tiny. |
 | LoRA dropout | 0.05 | 0.05 limits memorizing the wording of 160 training scenarios. |

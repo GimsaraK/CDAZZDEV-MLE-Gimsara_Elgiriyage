@@ -12,6 +12,37 @@ from . import config
 from . import train_config as tc
 
 
+def float16_kwargs(torch) -> dict:
+    """Load-dtype argument for from_pretrained. transformers 4.56 renamed torch_dtype to dtype.
+
+    Without it, newer transformers loads Qwen2.5 in its config dtype (bfloat16),
+    which a T4 cannot train with float16 mixed precision.
+    """
+    import transformers
+    from packaging.version import Version
+
+    if Version(transformers.__version__) >= Version("4.56.0"):
+        return {"dtype": torch.float16}
+    return {"torch_dtype": torch.float16}
+
+
+def upcast_trainable_to_float32(model) -> int:
+    """Cast every trainable weight to float32 and return how many were changed.
+
+    float16 mixed precision unscales gradients with a GradScaler, which fails on
+    bfloat16 or float16 gradients. The LoRA weights are the only trainable ones, so
+    keeping them in float32 costs little memory. The 4-bit base stays frozen.
+    """
+    import torch
+
+    changed = 0
+    for param in model.parameters():
+        if param.requires_grad and param.dtype != torch.float32:
+            param.data = param.data.to(torch.float32)
+            changed += 1
+    return changed
+
+
 def load_student(target_modules):
     """4-bit NF4 base model plus a LoRA adapter. Caller must be on CUDA.
 
@@ -37,6 +68,8 @@ def load_student(target_modules):
         config.STUDENT_MODEL,
         quantization_config=quantization,
         device_map="auto",
+        # The layers that stay unquantized load in float16, not the config's bfloat16.
+        **float16_kwargs(torch),
     )
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     adapter = LoraConfig(
@@ -48,6 +81,7 @@ def load_student(target_modules):
         target_modules=list(target_modules),
     )
     model = get_peft_model(model, adapter)
+    upcast_trainable_to_float32(model)
     return model, tokenizer
 
 
@@ -214,7 +248,10 @@ def make_trainer(model, tokenizer, max_seq_length, output_dir: Path):
             trainer_kwargs["max_seq_length"] = max_seq_length
         elif "max_length" in trainer_params:
             trainer_kwargs["max_length"] = max_seq_length
-    return SFTTrainer(**trainer_kwargs)
+    trainer = SFTTrainer(**trainer_kwargs)
+    # Some TRL versions recast the adapter while building the trainer. Check again just before training.
+    upcast_trainable_to_float32(trainer.model)
+    return trainer
 
 
 def save_loss_plot(table, path: Path):
@@ -258,8 +295,8 @@ def merge_and_push(adapter_dir: Path, save_dir: Path, token: str) -> str:
     # float16, not 4-bit. This is a second load, independent of the trainer model.
     base = AutoModelForCausalLM.from_pretrained(
         config.STUDENT_MODEL,
-        torch_dtype=torch.float16,
         device_map="auto",
+        **float16_kwargs(torch),
     )
     merged = PeftModel.from_pretrained(base, str(adapter_dir))
     merged = merged.merge_and_unload()

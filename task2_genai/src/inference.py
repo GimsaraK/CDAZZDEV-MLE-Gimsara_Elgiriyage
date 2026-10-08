@@ -12,6 +12,7 @@ from typing import List, Optional
 
 from . import eval_config as ec
 from . import train_config as tc
+from .qlora import float16_kwargs
 
 logger = logging.getLogger("task2.inference")
 
@@ -48,16 +49,6 @@ def resolve_finetuned_source() -> Optional[str]:
     return None
 
 
-def _dtype_kwargs(torch) -> dict:
-    """transformers 4.56 renamed torch_dtype to dtype. Pass the name this install expects."""
-    import transformers
-    from packaging.version import Version
-
-    if Version(transformers.__version__) >= Version("4.56.0"):
-        return {"dtype": torch.float16}
-    return {"torch_dtype": torch.float16}
-
-
 def load_eval_model(source: str):
     """float16 model and its tokenizer. No quantization, so base and fine-tuned run the same way."""
     import torch
@@ -66,7 +57,7 @@ def load_eval_model(source: str):
     tokenizer = AutoTokenizer.from_pretrained(source)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(source, device_map="auto", **_dtype_kwargs(torch))
+    model = AutoModelForCausalLM.from_pretrained(source, device_map="auto", **float16_kwargs(torch))
     model.eval()
     return model, tokenizer
 
