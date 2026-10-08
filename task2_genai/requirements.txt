@@ -1,0 +1,35 @@
+# Task 2 - Generative AI
+# torch is preinstalled on Colab GPU runtimes.
+# Pin exact versions (pip freeze) after the final Colab run.
+
+# Fine-tuning
+transformers
+peft
+trl
+bitsandbytes
+accelerate
+datasets
+huggingface_hub
+
+# Teacher-model data generation / LLM-as-judge
+groq
+openai
+pydantic
+python-dotenv
+
+# Evaluation
+evaluate
+rouge_score
+bert_score
+
+# Experiment tracking
+wandb
+
+# Analysis and plots
+pandas
+numpy
+matplotlib
+
+# RAG fallback (bonus)
+chromadb
+sentence-transformers

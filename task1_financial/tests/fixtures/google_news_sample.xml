@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>"AAPL" stock - Google News</title>
+    <item>
+      <title>Apple stock climbs on services growth - MarketWatch</title>
+      <link>https://news.google.com/rss/articles/abc</link>
+      <pubDate>Tue, 06 Oct 2026 12:00:00 GMT</pubDate>
+      <source url="https://www.marketwatch.com">MarketWatch</source>
+    </item>
+    <item>
+      <title>Jefferies downgrades Apple - Stocktwits</title>
+      <link>https://news.google.com/rss/articles/def</link>
+      <pubDate>Wed, 07 Oct 2026 06:11:44 GMT</pubDate>
+      <source url="https://stocktwits.com">Stocktwits</source>
+    </item>
+    <item>
+      <title>Apple supplier outlook - Some Blog</title>
+      <link>https://news.google.com/rss/articles/ghi</link>
+      <pubDate>Mon, 05 Oct 2026 08:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
