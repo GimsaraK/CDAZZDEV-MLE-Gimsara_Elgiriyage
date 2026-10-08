@@ -24,7 +24,10 @@ NON_RETRYABLE_EXCEPTIONS = (PipelineError, ValueError, KeyError, TypeError)
 
 
 def _log_before_sleep(description: str) -> Callable[[RetryCallState], None]:
+    """Build a tenacity callback that logs each failed attempt before the retry wait starts."""
+
     def _log(state: RetryCallState) -> None:
+        # state.outcome holds the result of the attempt that just failed; extract its exception.
         exc = state.outcome.exception() if state.outcome else None
         logger.warning(
             "%s failed (attempt %d/%d): %s - retrying",
@@ -43,14 +46,18 @@ def call_with_retry(func: Callable[..., T], description: str, *args: Any, **kwar
     The policy is built at call time from ``config`` so it can be tuned (or disabled in tests).
     """
     retrying = Retrying(
+        # Give up after RETRY_MAX_ATTEMPTS calls in total (the first call counts as attempt 1).
         stop=stop_after_attempt(config.RETRY_MAX_ATTEMPTS),
+        # Exponential backoff spreads retries out; random jitter avoids retrying in lock-step.
         # Full jitter: sleep ~ U(0, min(max, multiplier * 2**attempt)).
         wait=wait_random_exponential(
             multiplier=config.RETRY_BACKOFF_MIN_SECONDS,
             max=config.RETRY_BACKOFF_MAX_SECONDS,
         ),
+        # Retry everything except deterministic errors (retrying an unknown ticker cannot help).
         retry=retry_if_not_exception_type(NON_RETRYABLE_EXCEPTIONS),
         before_sleep=_log_before_sleep(description),
+        # Re-raise the original exception (not tenacity's RetryError) so callers see the real cause.
         reraise=True,
     )
     return retrying(func, *args, **kwargs)

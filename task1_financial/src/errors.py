@@ -8,3 +8,8 @@ class PipelineError(Exception):
 
 class DataUnavailableError(PipelineError):
     """Market data could not be obtained from the live source or the snapshot."""
+
+
+class LLMUnavailableError(PipelineError):
+    """An LLM provider could not be used (missing API key, or the key was rejected)."""
+    # AI-ASSISTED: Cursor Agent (claude-sonnet-5.5), Prompt: 'Implement the Task 1B plan', Date: 2026-10-08 (see CITATIONS.md Entry 6)

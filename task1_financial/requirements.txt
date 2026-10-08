@@ -13,8 +13,7 @@ requests
 # Robustness
 tenacity
 
-# LLM inference (Groq / OpenRouter via OpenAI-compatible API)
-groq
+# LLM inference. Both Groq and OpenRouter are called through the OpenAI-compatible API.
 openai
 
 # Structured output validation

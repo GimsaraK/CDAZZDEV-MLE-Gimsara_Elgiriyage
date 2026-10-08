@@ -56,6 +56,23 @@ Every prompt given to an AI assistant during this assessment, in chronological o
 - Files: `task1_financial/src/` (`config.py`, `logging_utils.py`, `errors.py`, `retry.py`, `indicators.py`, `data.py`, `news.py`, `summary.py`, `pipeline.py`), `task1_financial/tests/` (`conftest.py`, `test_indicators.py`, `test_data.py`, `test_news.py`, `test_summary.py`, `fixtures/`), `task1_financial/task1_equity_research.ipynb` (Part 1A cells), `task1_financial/requirements.txt`, `task1_financial/README.md`, `task1_financial/__init__.py`. Generated artefacts: `task1_financial/data/` (snapshot), `task1_financial/outputs/` (chart, summary JSON).
 - Each module and notebook cell carries an inline `# AI-ASSISTED:` comment referencing this entry.
 
+### Entry 5 - Task 1B implementation planning
+
+```
+# AI-ASSISTED: Cursor Agent (claude-sonnet-5.5), Prompt: 'Now analyze the specification again @CDAZZDEV_Senior_MLE_Assessment_2026.pdf thoroughly. Then call EnterPlanMode to create a comprehensive plan for Task 1B. Make sure all requirements in the @SUBMISSION_CHECKLIST.md for this task is covered in the plan including the marking rubric for this task. Call AskUserQuestion for all architectural judgment and engineering decisions.', Date: 2026-10-08
+```
+- Scope: Task 1
+- Output: implementation plan for Task 1B, with the design decisions confirmed by the user (kept as a local-only planning document). No repository code changed.
+
+### Entry 6 - Task 1B implementation
+
+```
+# AI-ASSISTED: Cursor Agent (claude-sonnet-5.5), Prompt: 'Task 1B Implementation Plan - LLM Sentiment and Signal Reasoning (40 marks) Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself. To-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.', Date: 2026-10-08
+```
+- Scope: Task 1
+- Files: `task1_financial/src/prompts.py`, `task1_financial/src/llm.py`, `task1_financial/src/config.py`, `task1_financial/src/errors.py`, `task1_financial/src/pipeline.py`, `task1_financial/tests/test_llm.py`, `task1_financial/requirements.txt`, `task1_financial/task1_equity_research.ipynb` (Part 1B cells), `task1_financial/README.md`.
+- Note: Groq retired `llama-3.3-70b-versatile` for free accounts on 2026-08-16, so the primary model is `openai/gpt-oss-120b`. OpenRouter has no free Llama 3.3 70B route, so the fallback model is `google/gemma-4-31b-it:free`. Local notebook run on 2026-10-08 scored 15 headlines and returned Hold.
+
 ---
 
 ## 2. Adapted Open-Source Code
@@ -88,3 +105,5 @@ Documentation, papers, or tutorials consulted closely:
 - yfinance documentation, https://ranaroussi.github.io/yfinance/: `Ticker.history`, `Ticker.info`, `Ticker.news`.
 - tenacity documentation, https://tenacity.readthedocs.io/: retry policy (`Retrying`, `wait_random_exponential`).
 - Google News RSS search endpoint (`news.google.com/rss/search`): free, keyless headline source.
+- Groq OpenAI-compatible chat API, https://console.groq.com/docs/openai, and deprecations, https://console.groq.com/docs/deprecations: primary LLM endpoint for Task 1B (`openai/gpt-oss-120b`, the replacement after `llama-3.3-70b-versatile` was retired).
+- OpenRouter models list, https://openrouter.ai/api/v1/models: used to pick a free fallback model (`google/gemma-4-31b-it:free`) after confirming Llama 3.3 70B is paid there.
