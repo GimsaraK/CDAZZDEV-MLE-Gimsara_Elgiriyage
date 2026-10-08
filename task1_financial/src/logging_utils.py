@@ -6,6 +6,7 @@ import sys
 
 from . import config
 
+# Parent logger for the package; every module logs to a child ("task1.data", "task1.news", ...).
 PACKAGE_LOGGER_NAME = "task1"
 
 
@@ -13,10 +14,12 @@ def configure_logging(level: str = config.LOG_LEVEL) -> logging.Logger:
     """Configure the package logger once; safe to call repeatedly (e.g. notebook re-runs)."""
     logger = logging.getLogger(PACKAGE_LOGGER_NAME)
     logger.setLevel(level)
+    # Only add a handler the first time; re-running the notebook cell would otherwise print every line twice.
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(logging.Formatter(config.LOG_FORMAT, datefmt=config.LOG_DATE_FORMAT))
         logger.addHandler(handler)
+    # Do not pass records up to the root logger (Jupyter has its own handler there -> duplicates).
     logger.propagate = False
 
     # yfinance prints its own HTTP errors; keep them out of the way unless they matter.

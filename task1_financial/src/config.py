@@ -160,6 +160,91 @@ CHART_LOOKBACK_SESSIONS = TRADING_DAYS_PER_YEAR * MIN_HISTORY_YEARS
 CHART_DPI = 120
 
 # ---------------------------------------------------------------------------
+# LLM sentiment and signal (Task 1B)
+# AI-ASSISTED: Cursor Agent (claude-sonnet-5.5), Prompt: 'Implement the Task 1B plan', Date: 2026-10-08 (see CITATIONS.md Entry 6)
+# ---------------------------------------------------------------------------
+# Groq is tried first. OpenRouter is used only when Groq is missing or its response fails validation.
+LLM_PROVIDER_GROQ = "groq"
+LLM_PROVIDER_OPENROUTER = "openrouter"
+LLM_PROVIDER_ORDER = (LLM_PROVIDER_GROQ, LLM_PROVIDER_OPENROUTER)
+
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+# Groq retired llama-3.3-70b-versatile for free and developer accounts on 2026-08-16.
+# Their documented replacement is openai/gpt-oss-120b (https://console.groq.com/docs/deprecations).
+# OpenRouter has no free Llama 3.3 70B route, so the fallback is a free instruction model
+# from the OpenRouter catalog (checked 2026-10-08).
+LLM_MODEL_GROQ = "openai/gpt-oss-120b"
+LLM_MODEL_OPENROUTER = "google/gemma-4-31b-it:free"
+
+LLM_TEMPERATURE = 0.1
+# gpt-oss spends some of this budget on a hidden reasoning trace before the JSON,
+# so the cap is larger than the few sentences we actually ask for.
+LLM_MAX_TOKENS_SENTIMENT = 2048
+LLM_MAX_TOKENS_SIGNAL = 4096
+LLM_TIMEOUT_SECONDS = 60
+
+# Ask every provider for a JSON object. Pydantic still validates the text afterwards.
+JSON_RESPONSE_FORMAT = {"type": "json_object"}
+
+# One repair call per provider after a validation failure, then the next provider.
+LLM_REPAIR_ATTEMPTS = 1
+
+# Buy/Hold/Sell justification length required by the specification.
+JUSTIFICATION_MIN_SENTENCES = 3
+JUSTIFICATION_MAX_SENTENCES = 5
+
+SENTIMENT_POSITIVE = "positive"
+SENTIMENT_NEGATIVE = "negative"
+SENTIMENT_NEUTRAL = "neutral"
+# Maps a label to a vote so the overall score is a confidence-weighted mean in [-1, +1].
+SENTIMENT_VOTE = {
+    SENTIMENT_POSITIVE: 1,
+    SENTIMENT_NEGATIVE: -1,
+    SENTIMENT_NEUTRAL: 0,
+}
+
+# Same cut-offs as the momentum score (MOMENTUM_STRONG_THRESHOLD / MOMENTUM_MILD_THRESHOLD).
+SENTIMENT_LABEL_STRONG_POSITIVE = "Strong Positive"
+SENTIMENT_LABEL_POSITIVE = "Positive"
+SENTIMENT_LABEL_NEUTRAL = "Neutral"
+SENTIMENT_LABEL_NEGATIVE = "Negative"
+SENTIMENT_LABEL_STRONG_NEGATIVE = "Strong Negative"
+SENTIMENT_LABEL_UNAVAILABLE = "Unavailable"
+
+SIGNAL_BUY = "Buy"
+SIGNAL_HOLD = "Hold"
+SIGNAL_SELL = "Sell"
+# Used only when every provider fails. Recorded with fallback=True so it is not read as a real thesis.
+SIGNAL_FALLBACK = SIGNAL_HOLD
+
+ENV_GROQ_API_KEY = "GROQ_API_KEY"
+ENV_OPENROUTER_API_KEY = "OPENROUTER_API_KEY"
+
+# OpenRouter asks callers to identify themselves. These are not secrets.
+OPENROUTER_HEADERS = {
+    "HTTP-Referer": "https://github.com/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage",
+    "X-Title": "CDAZZDEV MLE Task 1",
+}
+
+# ---------------------------------------------------------------------------
+# Equity research brief (Task 1 bonus)
+# ---------------------------------------------------------------------------
+# How many headlines the brief shows. Ranked by abs(vote) * confidence.
+BRIEF_TOP_HEADLINES = 3
+BRIEF_MARKDOWN_TEMPLATE = "{ticker}_research_brief.md"
+BRIEF_HTML_TEMPLATE = "{ticker}_research_brief.html"
+# Fixed text. The renderer always includes it; the model cannot omit or rewrite it.
+RISK_DISCLAIMER = (
+    "This brief is an automated first-pass summary produced for a technical assessment. "
+    "It is not investment advice, a solicitation, or a recommendation to buy, sell, or hold any security. "
+    "Prices, indicators, and headlines can be wrong, delayed, or incomplete. "
+    "Past price action does not predict future returns. "
+    "Do your own research before making any financial decision."
+)
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 LOG_LEVEL = "INFO"

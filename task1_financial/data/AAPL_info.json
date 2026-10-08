@@ -1,14 +1,14 @@
 {
-  "fetched_at": "2026-10-08T02:25:27+00:00",
+  "fetched_at": "2026-10-08T15:04:06+00:00",
   "data": {
     "longName": "Apple Inc.",
     "shortName": "Apple Inc.",
     "currency": "USD",
-    "trailingPE": 38.608944,
-    "forwardPE": 35.132553,
+    "trailingPE": 38.708565,
+    "forwardPE": 35.223206,
     "trailingEps": 8.72,
     "fiftyTwoWeekHigh": 345.34,
     "fiftyTwoWeekLow": 243.42,
-    "regularMarketPrice": 336.67
+    "regularMarketPrice": 337.5387
   }
 }

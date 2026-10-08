@@ -39,6 +39,7 @@ def _indicator_frame(**last_values) -> pd.DataFrame:
 
 # --------------------------------------------------------------------------- momentum
 def test_all_bullish_components_give_strong_bullish():
+    """All seven rules bullish -> score 1.0 and the Strong Bullish label."""
     signal = sm.compute_momentum(_indicator_frame())
     assert all(c.vote == 1 for c in signal.components)
     assert signal.score == 1.0
@@ -47,6 +48,7 @@ def test_all_bullish_components_give_strong_bullish():
 
 
 def test_all_bearish_components_give_strong_bearish():
+    """All seven rules bearish -> score -1.0 and the Strong Bearish label."""
     df = _indicator_frame(**{"Adj Close": 90.0, ind.COL_SMA_SHORT: 95.0, ind.COL_MACD: -1.0, ind.COL_RSI: 40.0,
                              ind.COL_BB_PCT_B: 0.2})
     df[ind.COL_MACD_HIST] = np.linspace(0.5, -0.5, N_ROWS)
@@ -57,6 +59,7 @@ def test_all_bearish_components_give_strong_bearish():
 
 
 def test_overbought_rsi_and_upper_band_do_not_vote_but_are_flagged():
+    """Stretched RSI and %B abstain (vote 0) and add flags, so the score is 5/7."""
     signal = sm.compute_momentum(_indicator_frame(**{ind.COL_RSI: 78.0, ind.COL_BB_PCT_B: 1.2}))
     votes = {c.name: c.vote for c in signal.components}
     assert votes["rsi_zone"] == 0 and votes["bollinger_pct_b"] == 0
@@ -66,12 +69,14 @@ def test_overbought_rsi_and_upper_band_do_not_vote_but_are_flagged():
 
 
 def test_nan_components_are_skipped_and_reported():
+    """Rules that need a missing SMA-200 are listed as unavailable and left out of the average."""
     signal = sm.compute_momentum(_indicator_frame(**{ind.COL_SMA_LONG: np.nan}))
     assert {"price_vs_sma_200", "trend_regime"} <= set(signal.unavailable)
     assert signal.score == 1.0  # the remaining components are all bullish
 
 
 def test_no_data_gives_unavailable():
+    """An empty frame gives the Unavailable label instead of an error."""
     assert sm.compute_momentum(pd.DataFrame()).label == config.MOMENTUM_LABEL_UNAVAILABLE
 
 
@@ -88,10 +93,12 @@ def test_no_data_gives_unavailable():
     ],
 )
 def test_momentum_label_thresholds_are_symmetric(score, label):
+    """Label boundaries are symmetric around 0 (+/-0.2 mild, +/-0.6 strong)."""
     assert sm.momentum_label(score) == label
 
 
 def test_golden_cross_flag():
+    """SMA-50 crossing above SMA-200 inside the lookback window raises a golden-cross flag."""
     df = _indicator_frame()
     df[ind.COL_SMA_SHORT] = [99.0] * (N_ROWS - 3) + [101.0] * 3  # crossed above SMA-200 3 sessions ago
     signal = sm.compute_momentum(df)
@@ -100,6 +107,7 @@ def test_golden_cross_flag():
 
 # --------------------------------------------------------------------------- 52-week range
 def test_week_52_uses_calendar_window_and_raw_prices():
+    """A spike ~60 weeks ago is outside the window; spikes inside it set the high and low."""
     df = make_ohlcv(400)
     df.index = df.index.tz_localize(None)
     df.loc[df.index[-300], "High"] = 999.0  # ~60 weeks ago: outside the window
@@ -111,12 +119,14 @@ def test_week_52_uses_calendar_window_and_raw_prices():
 
 
 def test_week_52_mismatch_warning():
+    """Only gaps above the tolerance vs Yahoo's values produce a warning (the high here, not the low)."""
     warnings = sm.check_week_52_against_source(100.0, 50.0, {"fiftyTwoWeekHigh": 110.0, "fiftyTwoWeekLow": 50.2})
     assert len(warnings) == 1 and "high" in warnings[0]
 
 
 # --------------------------------------------------------------------------- YTD
 def test_ytd_uses_last_close_of_previous_year():
+    """YTD is measured from the previous year's last close, not this year's first close."""
     index = pd.to_datetime(["2025-12-30", "2025-12-31", "2026-01-02", "2026-03-02"])
     df = pd.DataFrame({"Adj Close": [95.0, 100.0, 101.0, 110.0]}, index=index)
     ytd, base_date, base_price, reason = sm.compute_ytd_return(df)
@@ -125,6 +135,7 @@ def test_ytd_uses_last_close_of_previous_year():
 
 
 def test_ytd_unavailable_without_prior_year():
+    """Without data from the previous year, YTD is None with a reason."""
     df = pd.DataFrame({"Adj Close": [100.0, 101.0]}, index=pd.to_datetime(["2026-01-02", "2026-01-05"]))
     ytd, _, _, reason = sm.compute_ytd_return(df)
     assert ytd is None and "before the start" in reason
@@ -143,6 +154,7 @@ def test_ytd_unavailable_without_prior_year():
     ],
 )
 def test_pe_fallback_chain(info, price, expected_pe, expected_source, has_reason):
+    """P/E: trailingPE first, then price / EPS, otherwise None with a reason (bad values treated as missing)."""
     pe, source, reason, _ = sm.compute_pe(info, price)
     assert pe == (pytest.approx(expected_pe) if expected_pe else None)
     assert source == expected_source
@@ -150,17 +162,20 @@ def test_pe_fallback_chain(info, price, expected_pe, expected_source, has_reason
 
 
 def test_forward_pe_reported_separately():
+    """Forward P/E is returned separately and does not replace the trailing P/E."""
     _, _, _, forward = sm.compute_pe({"trailingPE": 30.0, "forwardPE": 25.0}, 150.0)
     assert forward == 25.0
 
 
 # --------------------------------------------------------------------------- full summary
 def _market(df, info):
+    """Clean a synthetic frame and wrap it in MarketData, as load_market_data would."""
     cleaned, quality = validate_and_clean_ohlcv(df)
     return MarketData(ticker="AAPL", ohlcv=cleaned, info=info, quality=quality), cleaned
 
 
 def test_build_summary_has_all_required_fields_and_is_json_serialisable():
+    """Every spec field is filled, values are consistent, and the summary serialises to JSON."""
     market, cleaned = _market(make_ohlcv(756), {"trailingPE": 30.0, "longName": "Apple Inc.", "currency": "USD"})
     news = NewsResult(ticker="AAPL", items=[NewsItem(title=f"h{i}", source="google_rss") for i in range(12)],
                       sources_used=["google_rss"])
@@ -176,6 +191,7 @@ def test_build_summary_has_all_required_fields_and_is_json_serialisable():
 
 
 def test_build_summary_degrades_gracefully_with_empty_info():
+    """Missing company info leaves P/E and the name empty but the price fields still work."""
     market, cleaned = _market(make_ohlcv(756), {})
     summary = sm.build_summary(market, ind.add_indicators(cleaned))
     assert summary.pe_ratio is None and summary.pe_unavailable_reason
@@ -184,6 +200,7 @@ def test_build_summary_degrades_gracefully_with_empty_info():
 
 
 def test_build_summary_with_short_history_marks_components_unavailable():
+    """With 120 sessions, SMA-200 rules are unavailable but a score is still produced."""
     market, cleaned = _market(make_ohlcv(120), {"trailingPE": 30.0})
     summary = sm.build_summary(market, ind.add_indicators(cleaned))
     assert "price_vs_sma_200" in summary.momentum.unavailable
