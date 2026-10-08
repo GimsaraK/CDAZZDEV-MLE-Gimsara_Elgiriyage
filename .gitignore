@@ -1,0 +1,76 @@
+# ---------------------------------------------------------------
+# Secrets and credentials (never commit)
+# ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets*.json
+credentials*.json
+service_account*.json
+.huggingface/
+.netrc
+
+# ---------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.conda/
+
+# ---------------------------------------------------------------
+# Jupyter / Colab
+# ---------------------------------------------------------------
+.ipynb_checkpoints/
+sample_data/
+
+# ---------------------------------------------------------------
+# Model weights, checkpoints, and training artefacts
+# (the Task 2 model is hosted on Hugging Face Hub / Google Drive)
+# ---------------------------------------------------------------
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.gguf
+*.onnx
+checkpoints/
+task2_genai/models/
+task2_genai/outputs/checkpoints/
+offload/
+
+# ---------------------------------------------------------------
+# Experiment tracking and vector stores (rebuildable)
+# ---------------------------------------------------------------
+wandb/
+mlruns/
+lightning_logs/
+chroma_db/
+*.sqlite3
+
+# ---------------------------------------------------------------
+# OS / editor
+# ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
