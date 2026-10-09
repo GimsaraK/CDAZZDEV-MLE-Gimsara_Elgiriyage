@@ -5,7 +5,7 @@ log returns, scaled by sqrt(252) to an annual figure. Over a horizon of t tradin
 one standard deviation of the log price move is sigma * sqrt(t / 252), and the price band
 is spot * exp(+/- n * that move) (a log-normal band, so it never goes below zero).
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
 
 import math
 from typing import Optional, Tuple
@@ -31,6 +31,8 @@ def log_returns(prices: pd.Series) -> pd.Series:
     """Daily log returns. Non-positive or missing prices are dropped first (log is undefined there)."""
     clean = pd.to_numeric(prices, errors="coerce")
     clean = clean[clean > 0].dropna()
+    # shift(1) lines each price up with the previous day's, so this is ln(P_t / P_{t-1}) for every day.
+    # The first day has no previous price (NaN) and is dropped.
     return np.log(clean / clean.shift(1)).dropna()
 
 
@@ -44,6 +46,8 @@ def annualised_vol(returns: pd.Series, window: int) -> Optional[float]:
 
 
 def rolling_annualised_vol(returns: pd.Series, window: int) -> pd.Series:
+    # The same estimator as annualised_vol, computed for every day: each value uses the `window` returns
+    # ending on that day. The first window-1 days are incomplete (NaN) and are dropped.
     return returns.rolling(window).std(ddof=1).dropna() * math.sqrt(config.TRADING_DAYS_PER_YEAR)
 
 
@@ -52,6 +56,8 @@ def vol_percentile(rolling: pd.Series, current: float, lookback: int = config.VO
     history = rolling.tail(lookback)
     if history.empty:
         return None
+    # (history <= current) is a True/False series; its mean is the fraction of True values, e.g. 0.8 means
+    # today's volatility is at or above 80% of the readings over the lookback.
     return float((history <= current).mean() * 100)
 
 
@@ -72,6 +78,8 @@ def horizon_trading_days(calendar_days: int = config.HEDGE_HORIZON_CALENDAR_DAYS
 
 def expected_move(annual_vol: float, trading_days: int) -> float:
     """One-sigma log move (fraction) over `trading_days`."""
+    # Volatility grows with the square root of time (independent daily returns add variances), so the
+    # annual figure is scaled down by sqrt(fraction of a year). E.g. 25% annual over 62 days ~ 12.4%.
     return annual_vol * math.sqrt(trading_days / config.TRADING_DAYS_PER_YEAR)
 
 
@@ -85,5 +93,7 @@ def max_drawdown(prices: pd.Series, lookback: int = config.DRAWDOWN_LOOKBACK) ->
     tail = pd.to_numeric(prices, errors="coerce").dropna().tail(lookback)
     if len(tail) < 2:
         return None
+    # cummax is the highest price seen so far on each day; price / peak - 1 is how far below that peak the
+    # stock is on that day (0 at a new high). The most negative of those is the worst fall.
     running_peak = tail.cummax()
     return float((tail / running_peak - 1).min())

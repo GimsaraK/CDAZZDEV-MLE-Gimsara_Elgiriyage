@@ -7,7 +7,7 @@ Used by the 3A research agent (agent.py, which adds a report writer and a report
 around it) and by both 3B agents (multi_agent.py, one loop per agent with its own tools).
 The LLM picks every tool call; routing only follows its decisions.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
 
 import operator
 from typing import Annotated, Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, TypedDict, TypeVar
@@ -140,6 +140,7 @@ def run_react_loop(
     `on_message` sees every message the loop adds, as it happens.
     """
     state: Dict[str, Any] = {"messages": list(messages), "events": []}
+    # The messages passed in (the task, or an earlier conversation) are not re-printed; only new ones are.
     seen = len(messages)
     try:
         for state in loop.stream(state, config={"recursion_limit": recursion_limit}, stream_mode="values"):
@@ -151,5 +152,7 @@ def run_react_loop(
     except Exception as exc:  # noqa: BLE001 - keep the partial history and report the failure
         note = f"Agent loop stopped: {safe_error(exc)}"
         logger.error(note)
+        # Return the last good state with the failure recorded, so the caller still gets the partial
+        # conversation (and any tool results) instead of an exception.
         state = {**state, "llm_error": state.get("llm_error") or note, "events": [*state.get("events", []), note]}
     return state

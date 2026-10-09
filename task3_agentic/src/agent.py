@@ -10,9 +10,9 @@
 Nothing here fixes the order of tool calls. The agent node only asks the model what to
 do next given the conversation so far, and routing follows the model's tool calls.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16): loop moved to react.py
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18): checkpointer thread and follow-up mode
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16): loop moved to react.py
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18): checkpointer thread and follow-up mode
 
 import operator
 import time
@@ -140,6 +140,9 @@ def build_research_graph(
         previous = (
             prompts.REPORT_PREVIOUS_ISSUES.format(issues="\n".join(f"- {i}" for i in issues)) if issues else ""
         )
+        # The report writer is a separate, fresh call. It gets a compact digest of the session's successful
+        # tool results instead of the whole agent conversation: smaller (fits the token budget) and
+        # limited to facts the check can verify. messages[0] is always the original research question.
         request: List[BaseMessage] = [
             SystemMessage(content=prompts.REPORT_SYSTEM),
             HumanMessage(
@@ -174,6 +177,9 @@ def build_research_graph(
         revisions = state.get("revisions", 0)
         # Sending the agent back only helps if its model is still reachable.
         if revisions < config.MAX_REPORT_REVISIONS and not state.get("llm_error"):
+            # This is the replan path: the failed checks go into the agent's own conversation as a new
+            # user message, and route_after_check sends control back to the agent node, which can now
+            # call more tools to fill the gaps.
             feedback = prompts.REPORT_FEEDBACK.format(issues="\n".join(f"- {i}" for i in issues))
             note = f"Report check failed ({len(issues)} issue(s)); sending the agent back (revision {revisions + 1})"
             logger.info(note)
@@ -190,6 +196,8 @@ def build_research_graph(
     def route_after_check(state: AgentState) -> str:
         return NODE_AGENT if state.get("send_back") else END
 
+    # Wiring: plain edges always go to the next node; conditional edges call the route function, whose
+    # return value names the next node (the list gives the possible targets, for the graph drawing).
     graph = StateGraph(AgentState)
     graph.add_node(NODE_AGENT, agent_node)
     graph.add_node(NODE_TOOLS, tool_node(tools))
@@ -252,10 +260,13 @@ def run_research(
             report_model = report_model or defaults["report"]
         graph = build_research_graph(ctx, agent_model, report_model, tools, checkpointer or InMemorySaver())
         initial = {**state, "revisions": 0, "events": [], "mode": config.MODE_RESEARCH}
+        # recursion_limit caps the number of graph steps (a hard stop if routing ever loops);
+        # thread_id tells the checkpointer which conversation to save this run under.
         run_config = {"recursion_limit": recursion_limit, "configurable": {"thread_id": thread_id}}
         # stream_mode="values" yields the full state after every step, so a crash mid-run keeps the partial trace.
         for state in graph.stream(initial, config=run_config, stream_mode="values"):
             messages = state.get("messages", [])
+            # `seen` counts messages already printed; only the new ones since the last step are sent to the printer.
             if on_message is not None:
                 for message in messages[seen:]:
                     on_message(message)

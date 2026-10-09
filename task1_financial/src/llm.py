@@ -118,6 +118,7 @@ def count_sentences(text: str) -> int:
     cleaned = " ".join((text or "").split())
     if not cleaned:
         return 0
+    # Splitting on sentence boundaries gives one piece per sentence ("A. B. C." -> 3 pieces).
     return len(_SENTENCE_BOUNDARY.split(cleaned))
 
 
@@ -149,6 +150,8 @@ def aggregate_sentiment(
     weight_sum = sum(item.confidence for item in items)
     if weight_sum == 0:
         return None, config.SENTIMENT_LABEL_UNAVAILABLE, len(items), 0.0, "Every scored headline has zero confidence"
+    # Each headline votes +1 / 0 / -1, weighted by how confident the model was. Dividing by the total
+    # weight keeps the result in [-1, 1]. Example: positive@0.9 and negative@0.3 -> (0.9 - 0.3) / 1.2 = 0.5.
     weighted = sum(config.SENTIMENT_VOTE[item.sentiment] * item.confidence for item in items)
     score = round(weighted / weight_sum, config.RATIO_DECIMALS)
     return score, sentiment_label(score), len(items), round(weight_sum, config.RATIO_DECIMALS), None
@@ -323,6 +326,7 @@ def parse_or_repair(
         {"role": "user", "content": user},
     ]
     last_error = "no response"
+    # attempt 0 is the normal call; attempts 1..LLM_REPAIR_ATTEMPTS are repair calls.
     for attempt in range(1 + config.LLM_REPAIR_ATTEMPTS):
         try:
             raw = client.complete(messages, max_tokens, config.JSON_RESPONSE_FORMAT)
@@ -331,7 +335,9 @@ def parse_or_repair(
             logger.warning(last_error)
             return None, False, last_error
         try:
+            # Pydantic parses and validates in one step: wrong keys, types or ranges raise ValidationError.
             parsed = model_cls.model_validate_json(_strip_json_fence(raw))
+            # attempt > 0 means this success came from a repair call.
             return parsed, attempt > 0, None
         except ValidationError as exc:
             last_error = _validation_message(exc)
@@ -448,6 +454,7 @@ def recommend_signal(
     context = json.dumps(build_signal_context(summary, sentiment), indent=2, default=str)
     user = prompts.SIGNAL_USER.format(context_json=context)
     failures: List[str] = []
+    # Providers in order (Groq, then OpenRouter). Each gets a call plus one repair; the first valid answer wins.
     for client in ordered:
         parsed, repaired, error = parse_or_repair(
             client, prompts.SIGNAL_SYSTEM, user, SignalRecommendation, config.LLM_MAX_TOKENS_SIGNAL

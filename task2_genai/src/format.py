@@ -22,6 +22,8 @@ def assistant_json(example: TeacherExample) -> str:
         "rationale": example.rationale,
         "required_action": example.required_action,
     }
+    # sort_keys + compact separators give one canonical string per label: the same answer always
+    # serialises identically, so the model learns one exact format and ROUGE compares like with like.
     return json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
 
 
@@ -40,6 +42,7 @@ def render_qwen_chatml(messages: List[Dict[str, str]]) -> str:
     for message in messages:
         role = message["role"]
         content = message["content"]
+        # Each turn is wrapped in Qwen's special tokens; the tokenizer turns these markers into single ids.
         parts.append(f"<|im_start|>{role}\n{content}<|im_end|>\n")
     return "".join(parts)
 

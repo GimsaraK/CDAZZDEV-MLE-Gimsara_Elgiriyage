@@ -4,8 +4,8 @@ Each line holds the tool name, its input arguments, the output truncated to 200
 characters, and the wall-clock duration, as the specification asks. It also records the
 timestamp, session id, agent name and status, so 3B and 3C can filter by agent or run.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16): agent attribution and the tool-access guard
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16): agent attribution and the tool-access guard
 
 import json
 import re
@@ -38,6 +38,8 @@ def safe_error(exc: BaseException, limit: int = SAFE_ERROR_MAX_CHARS) -> str:
     HTTP errors from LLM providers are reduced to the status code and a short reason,
     because their bodies include account details. Anything else is redacted and cut.
     """
+    # OpenAI/Groq SDK errors carry an HTTP status_code. For those the original text (which may contain
+    # the organisation id) is thrown away and rebuilt from the status code alone.
     status = getattr(exc, "status_code", None)
     text = str(exc)
     if isinstance(status, int):
@@ -49,6 +51,7 @@ def safe_error(exc: BaseException, limit: int = SAFE_ERROR_MAX_CHARS) -> str:
         else:
             reason = "request rejected"
         text = f"HTTP {status}, {reason}"
+    # Second safety net for any other exception text: mask org ids and anything shaped like an API key.
     text = _KEY_LIKE.sub("[redacted]", _ORG_ID.sub("org_[redacted]", text))
     return f"{type(exc).__name__}: {text}"[:limit]
 
@@ -144,7 +147,9 @@ def run_traced(
     outside it is refused here, before the tool body runs, and the attempt is still logged.
     """
     agent_name = agent or ctx.agent_name
+    # perf_counter is a monotonic high-resolution clock, right for measuring wall-clock duration.
     start = time.perf_counter()
+    # allowed=None means "no restriction" (the single 3A agent); a set means "only these tools" (3B agents).
     denied = allowed is not None and tool not in allowed
     if denied:
         exc = ToolAccessError(f"{agent_name} may not call {tool} (allowed: {', '.join(sorted(allowed))})")
@@ -152,12 +157,15 @@ def run_traced(
         result = error_result(tool, exc, ACCESS_DENIED_HINT)
     else:
         try:
+            # In the fault demo this raises InjectedFault before the tool runs; normally it does nothing.
             ctx.faults.check(tool)
             result = func(**args)
         except Exception as exc:  # noqa: BLE001 - any failure becomes an error envelope the agent can read
             logger.warning("Tool %s failed: %s", tool, safe_error(exc))
             result = error_result(tool, exc, error_hint)
     duration_ms = (time.perf_counter() - start) * 1000
+    # Two records of every call: the in-memory session history (used by later tools, the report checks
+    # and the handoffs) and one line in agent_trace.jsonl (the spec's observability log).
     ctx.record(tool, args, result, duration_ms, agent=agent_name, denied=denied)
     ctx.trace.log(
         session_id=ctx.session_id,
@@ -173,7 +181,7 @@ def run_traced(
 
 
 # --------------------------------------------------------------------------- 3C: session events and the trace audit
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
 class EventLogger:
     """Non-tool events (cache hit/miss/write, follow-up answered) in logs/session_events.jsonl.
 
@@ -231,6 +239,7 @@ def audit_trace(records: List[Dict[str, Any]]) -> Dict[str, Any]:
         duration = record.get("duration_ms")
         if not isinstance(duration, (int, float)) or duration < 0:
             bad_duration.append(number)
+        # Tally each record into four histograms at once (per session, agent, tool and status).
         for key, bucket in counts.items():
             value = str(record.get(key))
             bucket[value] = bucket.get(value, 0) + 1

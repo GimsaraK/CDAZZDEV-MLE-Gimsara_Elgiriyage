@@ -4,7 +4,7 @@ check_report() is the guard against a report that sounds right but is not backed
 this session's data: every risk must cite a tool that actually succeeded, and the
 hedge's volatility numbers must match a calculate_volatility result.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
 
 import json
 from pathlib import Path
@@ -15,6 +15,7 @@ from .schemas import TOOL_NAMES, FinalReport, ResearchReport
 from .session import SessionContext
 
 # Fields left out of the digest: the report never needs raw daily bars.
+# Pydantic's nested exclude syntax: inside the ToolResult's "data" field, drop these two sub-fields.
 _DIGEST_EXCLUDE = {"data": {"recent_bars", "recent_bars_columns"}}
 
 
@@ -32,17 +33,19 @@ def build_evidence_digest(ctx: SessionContext) -> str:
                 }
                 for record in records
             ]
+    # Tools that never succeeded are listed with their latest error, so the writer can report them as gaps.
     failed = {}
     for tool in sorted(ctx.failed_tools()):
         last = ctx.results_for(tool, ok_only=False)[0].result
         failed[tool] = {"status": last.status, "error": last.error}
+    # separators=(",", ":") drops the spaces json.dumps adds by default, saving tokens in the prompt.
     return json.dumps({"succeeded": succeeded, "failed": failed}, separators=(",", ":"), default=str)
 
 
 def build_writer_digest(ctx: SessionContext, brief: Any, request: Any, response: Any, agent: str) -> str:
     """3B: what Agent B may use for the final report. A's data reaches B only through the brief and the answer.
 
-    AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+    AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
     """
     own: Dict[str, List[Dict[str, Any]]] = {}
     failed: Dict[str, Any] = {}
@@ -89,6 +92,7 @@ def check_report(report: Optional[ResearchReport], ctx: SessionContext) -> List[
         issues.append("financial_health.key_metrics must include values from get_price_data.")
     if len(health.key_metrics) < config.MIN_KEY_METRICS:
         issues.append(f"financial_health.key_metrics needs at least {config.MIN_KEY_METRICS} metrics.")
+    # Set difference: the tools the metrics cite, minus the tools that actually worked = cited without data.
     unbacked_metrics = sorted({m.source_tool for m in health.key_metrics} - succeeded)
     if unbacked_metrics:
         issues.append(f"key_metrics cite {unbacked_metrics}, which returned no usable data this session.")
@@ -103,6 +107,8 @@ def check_report(report: Optional[ResearchReport], ctx: SessionContext) -> List[
     # Every risk needs evidence from a tool that worked.
     for number, risk in enumerate(report.risks, start=1):
         cited = {e.source_tool for e in risk.evidence}
+        # Two checks with set operators: `cited & succeeded` is empty when no cited tool worked (no real
+        # evidence at all); `cited - succeeded` is non-empty when some evidence names a tool that failed.
         if not cited & succeeded:
             issues.append(
                 f"Risk {number} ('{risk.name}') has no evidence from a tool that succeeded this session "
@@ -114,7 +120,8 @@ def check_report(report: Optional[ResearchReport], ctx: SessionContext) -> List[
                 "replace that evidence."
             )
 
-    # A tool that only failed is a gap the reader must be told about.
+    # A tool that only failed is a gap the reader must be told about. All gap lines are joined into one
+    # lowercase string, so the check is simply "does the tool's name appear anywhere in data_gaps".
     gap_text = " ".join(report.data_gaps).lower()
     for tool in sorted(ctx.failed_tools()):
         if tool not in gap_text:
@@ -133,6 +140,8 @@ def check_report(report: Optional[ResearchReport], ctx: SessionContext) -> List[
         hedge = report.hedge
         tolerance = config.VOL_CHECK_TOLERANCE_PCT_POINTS
         computed = [(r.result.data.annualised_vol_pct, r.result.data.expected_move_pct) for r in vol_records]
+        # The agent may have computed several windows (e.g. 30d and 60d). The hedge passes if both of its
+        # numbers match the *same* computed result within the tolerance, so it cannot mix two windows.
         matches = any(
             abs(hedge.annualised_vol_pct - vol_pct) <= tolerance and abs(hedge.expected_move_90d_pct - move_pct) <= tolerance
             for vol_pct, move_pct in computed

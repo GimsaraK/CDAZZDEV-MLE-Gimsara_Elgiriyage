@@ -26,6 +26,7 @@ from .split import split_rows
 
 logger = logging.getLogger("task2.generate")
 
+# Matches an opening ``` or ```json at the start, or a closing ``` at the end, so both can be removed.
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
 
 
@@ -73,11 +74,14 @@ def _from_provider(client: ChatClient, messages, manual_ids, topic, situation, p
     """One completion plus one repair. Returns schema-valid examples, before dedup."""
     system = messages[0]["content"]
     user = messages[1]["content"]
+    # A network error from complete() is not caught here: it goes up to generate_cell, which
+    # moves on to the fallback teacher. Only bad *content* is handled in this function.
     raw = client.complete(messages)
     try:
         items = _parse_examples(raw)
         accepted, errors = _validate_batch(items, manual_ids, topic, situation, primary_id)
     except (json.JSONDecodeError, ValueError) as exc:
+        # Unparseable JSON: treat the whole response as one error so the repair turn can fix it.
         items, accepted, errors = [], [], [str(exc)]
     if errors:
         # The same provider gets one chance to fix its own JSON. This is not a retry of a network error.
@@ -126,6 +130,8 @@ def generate_cell(
             logger.warning("%s fallback failed for %s/%s: %s", fallback.provider, topic, situation, exc)
             return []
 
+    # Dedup runs last, against every scenario accepted so far (in this cell and all earlier ones).
+    # consider() also adds each kept scenario to the index, so two near-copies in one batch are caught.
     kept: List[TeacherExample] = []
     for example in accepted:
         if index.consider(example.scenario) is None:
@@ -190,6 +196,8 @@ def generate_dataset(clients: Optional[Dict[str, ChatClient]] = None) -> Dict[st
     if clients is None:
         load_api_keys()
         clients = build_clients()
+    # Groq is the teacher when its key is set; OpenRouter is then only the fallback. With only an
+    # OpenRouter key, OpenRouter becomes the teacher and there is no fallback.
     primary = clients.get(config.LLM_PROVIDER_GROQ) or clients.get(config.LLM_PROVIDER_OPENROUTER)
     if primary is None:
         raise RuntimeError("No teacher API key is set")
@@ -199,17 +207,22 @@ def generate_dataset(clients: Optional[Dict[str, ChatClient]] = None) -> Dict[st
     for topic in topics(manual):
         for situation in config.SITUATIONS:
             calls = 0
+            # Keep asking the teacher until this cell has its quota, but never more than
+            # MAX_CALLS_PER_CELL times: a cell the teacher keeps failing must not loop forever.
             while _cell_counts(rows)[(topic, situation)] < config.TARGET_PER_CELL and calls < config.MAX_CALLS_PER_CELL:
                 if len(rows) >= config.TARGET_ACCEPTED:
                     break
                 calls += 1
                 fresh = generate_cell(primary, manual, topic, situation, index, stats, fallback)
                 for example in fresh:
+                    # A batch can return more rows than the cell still needs; extra rows are discarded
+                    # so every cell ends with exactly TARGET_PER_CELL rows (balanced topics).
                     if _cell_counts(rows)[(topic, situation)] >= config.TARGET_PER_CELL:
                         break
                     if len(rows) >= config.TARGET_ACCEPTED:
                         break
                     rows.append(training_row(example))
+                # Saved after every call, so an interrupted run resumes from here without repeating calls.
                 _write_jsonl(config.ACCEPTED_PATH, rows)
                 logger.info(
                     "Cell %s/%s now %d; accepted %d",

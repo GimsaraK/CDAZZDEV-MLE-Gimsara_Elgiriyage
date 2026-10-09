@@ -69,12 +69,16 @@ def parse_answer(text: str) -> Tuple[Optional[dict], bool]:
     its first {...} block so its fields can be scored.
     """
     raw = (text or "").strip()
+    # Pass 1 (strict): the whole reply must be exactly one JSON object.
     try:
         payload = json.loads(raw)
         if isinstance(payload, dict):
             return payload, True
     except json.JSONDecodeError:
         pass
+    # Pass 2 (lenient): drop a ``` fence, then take the text from the first "{" to the last "}".
+    # This rescues answers like 'Here is the answer: {...}' so their fields can still be scored,
+    # while strict_ok=False records that the format instruction was not followed.
     candidate = _strip_fence(raw)
     start, end = candidate.find("{"), candidate.rfind("}")
     if start == -1 or end <= start:
@@ -135,6 +139,7 @@ def domain_metrics(text: str, gold_text: str, manual_ids: set, situation: str) -
     result = {
         "json_valid": strict_ok,
         "parsed": answer is not None,
+        # Same ids in any order, and no duplicates (the length check catches ["P1", "P1"] vs ["P1"]).
         "policy_exact": answer is not None and set(pred_ids) == set(gold_ids) and len(pred_ids) == len(gold_ids),
         "unknown_id": any(policy_id not in allowed for policy_id in pred_ids),
         "none_correct": None,
@@ -150,6 +155,8 @@ def rouge_l(candidates: Sequence[str], references: Sequence[str]) -> List[float]
     from rouge_score import rouge_scorer
 
     scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=ec.ROUGE_USE_STEMMER)
+    # ROUGE-L is based on the longest common subsequence of words. Note the argument order:
+    # rouge_score expects score(reference, candidate).
     return [scorer.score(ref, cand)["rougeL"].fmeasure for cand, ref in zip(candidates, references)]
 
 
@@ -179,6 +186,8 @@ def score_predictions(records: List[dict], manual_ids: set, rouge=rouge_l) -> Di
         golds = [record["gold"] for record in rows]
         parsed = [parse_answer(text)[0] for text in outputs]
         gold_parsed = [parse_answer(text)[0] for text in golds]
+        # Three ROUGE-L views per row: the whole answer (in canonical JSON, so key order and spacing
+        # cannot change the score), and the two free-text fields compared on their own.
         whole = rouge([canonical_answer(text) for text in outputs], golds)
         action = rouge(
             [answer_field(answer, "required_action") for answer in parsed],
@@ -222,6 +231,7 @@ def _pct(values: List[bool]) -> Optional[float]:
 def summarize(scores: Dict[str, List[dict]], judge_rows: Optional[List[dict]] = None) -> Dict[str, Dict]:
     """Model -> metric -> value. Missing metrics are None, never zero."""
     summary = {}
+    # Group the judge results by model ("base" / "finetuned") so each model's means use only its own rows.
     judged_by_model = {}
     for row in judge_rows or []:
         judged_by_model.setdefault(row["model"], []).append(row)
@@ -235,6 +245,7 @@ def summarize(scores: Dict[str, List[dict]], judge_rows: Optional[List[dict]] = 
             "json_valid_pct": _pct([row["json_valid"] for row in rows]),
             "policy_exact_pct": _pct([row["policy_exact"] for row in rows]),
             "unknown_id_pct": _pct([row["unknown_id"] for row in rows]),
+            # none_correct is None on rows that are not "not_covered", so those rows are left out of this %.
             "none_correct_pct": _pct([row["none_correct"] for row in rows if row["none_correct"] is not None]),
             "none_rows": sum(1 for row in rows if row["none_correct"] is not None),
         }
@@ -311,6 +322,7 @@ def save_comparison_chart(summary: Dict[str, Dict], path=None) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    # Chart only metrics that both models have, so no bar is missing its partner.
     metrics = [item for item in CHART_METRICS if all(summary.get(m, {}).get(item[0]) is not None for m in ec.MODEL_KEYS)]
     if not metrics:
         return
@@ -322,6 +334,8 @@ def save_comparison_chart(summary: Dict[str, Dict], path=None) -> None:
     fig, axis = plt.subplots(figsize=(7.5, 3.8), facecolor=surface)
     axis.set_facecolor(surface)
     positions = range(len(metrics))
+    # Grouped bars: base is shifted left of each tick and fine-tuned right of it. Every value is divided
+    # by its divisor so percentages and the judge total share the same 0-1 axis.
     for offset, model in ((-(width + gap) / 2, ec.BASE_KEY), ((width + gap) / 2, ec.FINETUNED_KEY)):
         values = [summary[model][key] / divisor for key, _, divisor in metrics]
         bars = axis.bar([p + offset for p in positions], values, width, label=ec.MODEL_LABELS[model], color=colors[model], zorder=2)
@@ -351,6 +365,10 @@ def save_comparison_chart(summary: Dict[str, Dict], path=None) -> None:
 
 def suggest_label(metrics: Dict, judge_row: Optional[dict], pred_ids: List[str], gold_ids: List[str]) -> Tuple[str, str]:
     """A starting label for the human reviewer, with the reason. The reviewer has the final say."""
+    # Rules run from most to least severe; the first one that fires decides the label.
+    # 1-3: no answer, an invented id, or citing a rule where none applies -> hallucinated.
+    # 4: wrong ids -> hallucinated if it added a wrong policy, partial if it only missed one.
+    # 5: right ids -> the judge's scores decide between correct and partial.
     if not metrics["parsed"]:
         return ec.LABEL_HALLUCINATED, "no usable JSON answer"
     if metrics["unknown_id"]:
@@ -413,6 +431,7 @@ def write_review(rows: List[dict], path=None) -> bool:
     """Write the review file. Returns False, and writes nothing, if a human label already exists."""
     target = path or ec.MANUAL_REVIEW_PATH
     existing = read_review(target)
+    # Guard against a notebook re-run wiping the human's labels: once any label is filled in, never overwrite.
     if existing and any(row.get("label") for row in existing.get("rows", [])):
         return False
     payload = {

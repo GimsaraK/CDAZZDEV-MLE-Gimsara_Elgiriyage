@@ -107,6 +107,9 @@ def select_top_headlines(
     Ties go to the higher confidence, then to the earlier headline, so the
     order does not depend on dict ordering.
     """
+    # enumerate() keeps each headline's original position. The sort key is a tuple compared left to right:
+    # largest contribution first (negated, because sorted() is ascending), then higher confidence,
+    # then the earlier position, so ties always resolve the same way.
     ranked = sorted(
         enumerate(items),
         key=lambda pair: (-headline_contribution(pair[1]), -pair[1].confidence, pair[0]),
@@ -188,6 +191,8 @@ def _snapshot_lines(summary: StockSummary) -> List[str]:
     if summary.forward_pe is not None:
         pe_text += f"; forward P/E {_number(summary.forward_pe)}"
 
+    # Prefer the stored percentage; fall back to converting the fraction; otherwise show why it is missing.
+    # ":+.2f" always prints a sign, so a gain reads "+12.34%" and a loss "-3.10%".
     if summary.ytd_return_pct is not None:
         ytd_text = f"{summary.ytd_return_pct:+.2f}%"
     elif summary.ytd_return is not None:
@@ -314,6 +319,8 @@ def build_brief_html(markdown_text: str, title: str, chart_path: Optional[Path])
     body = markdown.markdown(markdown_text)
     # Swap the relative image for a data URI. The Markdown file keeps the filename.
     if chart_path is not None and chart_path.is_file():
+        # The PNG bytes are base64-encoded into the <img> tag itself, so the HTML file can be opened
+        # or emailed on its own without the separate image file.
         encoded = base64.b64encode(chart_path.read_bytes()).decode("ascii")
         relative = f'src="{html.escape(chart_path.name)}"'
         body = body.replace(relative, f'src="data:image/png;base64,{encoded}"')

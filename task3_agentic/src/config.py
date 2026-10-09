@@ -1,5 +1,5 @@
 """Task 3 constants. Every window, limit, threshold and path the agent uses is named here."""
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
 
 from pathlib import Path
 
@@ -183,7 +183,7 @@ AGENT_NOTES_MAX_CHARS = 2000
 
 # ---------------------------------------------------------------------------
 # 3B multi-agent pipeline
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
 # ---------------------------------------------------------------------------
 AGENT_A_NAME = "data_analyst"
 AGENT_B_NAME = "research_writer"
@@ -217,7 +217,7 @@ MULTI_AGENT_STATUS_FAILED = "failed"
 
 # ---------------------------------------------------------------------------
 # 3C memory, cache and observability
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
 # ---------------------------------------------------------------------------
 MODE_RESEARCH = "research"
 MODE_FOLLOWUP = "followup"

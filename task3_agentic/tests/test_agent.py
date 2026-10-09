@@ -1,6 +1,6 @@
 """The LangGraph loop with scripted models: the model decides tool order, observations feed the next
 decision, the report check sends the agent back, and limits end the run without exceptions."""
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
 
 import itertools
 from typing import Callable, List, Optional, Sequence, Tuple, Union

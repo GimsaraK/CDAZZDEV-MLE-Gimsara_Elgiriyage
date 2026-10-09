@@ -22,6 +22,8 @@ _GPU_NAMES = ("trainer", "model", "merged", "base")
 
 def free_gpu(namespace: Optional[dict] = None) -> None:
     """Drop the training objects, then release cached CUDA memory."""
+    # GPU memory is only released once no Python name refers to the tensors, so the notebook's
+    # globals are removed first, then garbage collection frees the objects, then CUDA's cache is emptied.
     for name in _GPU_NAMES:
         if namespace is not None:
             namespace.pop(name, None)
@@ -68,8 +70,12 @@ def generate_answers(model, tokenizer, rows: List[dict]) -> List[str]:
 
     answers = []
     for row in rows:
+        # messages[:2] = system + user only (the gold assistant turn is left out). add_generation_prompt
+        # appends "<|im_start|>assistant\n", so the model's next tokens are its answer.
         prompt = tokenizer.apply_chat_template(row["messages"][:2], add_generation_prompt=True, tokenize=False)
+        # The template already contains the special tokens, so the tokenizer must not add more.
         encoded = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+        # no_grad: inference only, so no gradient memory is allocated.
         with torch.no_grad():
             output = model.generate(
                 **encoded,
@@ -82,6 +88,7 @@ def generate_answers(model, tokenizer, rows: List[dict]) -> List[str]:
                 repetition_penalty=ec.EVAL_REPETITION_PENALTY,
                 pad_token_id=tokenizer.pad_token_id,
             )
+        # generate() returns prompt + answer; slicing off the prompt's length leaves only the new tokens.
         new_tokens = output[0, encoded["input_ids"].shape[1]:]
         answers.append(tokenizer.decode(new_tokens, skip_special_tokens=True).strip())
     return answers

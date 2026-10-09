@@ -42,13 +42,17 @@ def _log_retry(description: str) -> Callable:
 def call_with_retry(func: Callable[..., T], description: str) -> T:
     """Retry network and rate-limit errors. ValueError is not retried."""
     retrying = Retrying(
+        # At most RETRY_MAX_ATTEMPTS calls in total (the first call counts as attempt 1).
         stop=stop_after_attempt(config.RETRY_MAX_ATTEMPTS),
+        # Exponential backoff with random jitter, so retries spread out instead of hitting the API in lockstep.
         wait=wait_random_exponential(
             multiplier=config.RETRY_BACKOFF_MIN_SECONDS,
             max=config.RETRY_BACKOFF_MAX_SECONDS,
         ),
+        # complete() turns a bad request into ValueError precisely so this rule skips the retry.
         retry=retry_if_not_exception_type(NON_RETRYABLE),
         before_sleep=_log_retry(description),
+        # Raise the original exception, not tenacity's RetryError wrapper.
         reraise=True,
     )
     return retrying(func)
@@ -111,11 +115,16 @@ class ChatClient:
                     max_tokens=self.max_tokens,
                     response_format={"type": "json_object"},
                 )
+            # Each provider error is re-raised as a type the retry rule understands, with a message
+            # that holds only the status code (the provider's body can include an account id):
             except AuthenticationError as exc:
+                # Bad key: not in NON_RETRYABLE, but a RuntimeError subclass the caller can catch by name.
                 raise TeacherUnavailable(f"{self.provider} rejected the API key") from exc
             except RateLimitError as exc:
+                # 429: worth retrying after a backoff.
                 raise RuntimeError(f"{self.provider} rate limited (HTTP 429)") from exc
             except APIStatusError as exc:
+                # Other 4xx/5xx (e.g. 400 bad request, 404 unknown model): ValueError, so no retry.
                 raise ValueError(f"{self.provider} rejected the request (HTTP {exc.status_code})") from exc
 
         completion = call_with_retry(_call, f"{self.provider} chat completion")

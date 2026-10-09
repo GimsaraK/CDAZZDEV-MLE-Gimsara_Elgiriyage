@@ -4,7 +4,7 @@ TracePrinter is passed to run_research(on_message=...) and prints each message a
 arrives. A DECIDE that follows tool results is labelled with the cycle number and the
 tools it observed, which makes the observe-and-replan loop visible.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
 
 import json
 from typing import Any, Dict, List, Optional
@@ -82,11 +82,13 @@ class TracePrinter:
     """
 
     def __init__(self, prefix: str = "", finish_text: str = "write the report from the gathered evidence") -> None:
-        self.step = 0
-        self.cycle = 0
+        # The printer keeps a little state between messages, because a "cycle" spans several of them:
+        # tool results arrive (OBSERVE), then the agent's next turn decides (DECIDE) based on them.
+        self.step = 0  # agent turns printed so far
+        self.cycle = 0  # observe -> decide cycles completed
         self.prefix = prefix
         self.finish_text = finish_text
-        self._observed: List[str] = []
+        self._observed: List[str] = []  # tools observed since the agent's last decision
 
     def __call__(self, message: BaseMessage) -> None:
         for block in self.format(message):
@@ -106,6 +108,8 @@ class TracePrinter:
             lines = []
             model = message.response_metadata.get("model_name")
             label = f"DECIDE   [step {self.step}{' | ' + model if model else ''}]"
+            # A decision that follows tool results closes one observe -> decide cycle: number it and name
+            # the tools it was based on, which is the visible evidence of replanning from observations.
             if self._observed:
                 self.cycle += 1
                 label += f" cycle {self.cycle}: after observing {', '.join(self._observed)}"
@@ -160,7 +164,7 @@ def trace_table(records: List[Dict[str, Any]], session_id: Optional[str] = None)
 
 
 # --------------------------------------------------------------------------- 3B: two agents
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
 _HANDOFF_RULE = "=" * 100
 
 
@@ -226,7 +230,7 @@ def schema_table(model: Any) -> pd.DataFrame:
 
 
 # --------------------------------------------------------------------------- 3C: memory and cache evidence
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
 def followup_table(answer: Any) -> pd.DataFrame:
     """The proof for a follow-up: tools run during it, trace lines before/after, and which remembered values it cites."""
     rows = [

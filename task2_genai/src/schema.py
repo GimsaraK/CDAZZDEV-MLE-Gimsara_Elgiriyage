@@ -56,6 +56,7 @@ def validate_example(payload: dict, manual_ids: set, topic: str, situation: str,
     The model is told the cell in the user message. We still reject a row that
     names a different topic, a different situation, or an id the manual does not contain.
     """
+    # Field-level checks first (ASCII, non-blank, scenario length), then the cross-field rules below.
     example = TeacherExample.model_validate(payload)
     if example.topic != topic or example.situation != situation:
         raise ValueError(f"cell mismatch: got {example.topic}/{example.situation}, expected {topic}/{situation}")
