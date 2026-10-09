@@ -162,8 +162,31 @@ All 20 fine-tuned answers are reviewed by hand against the policy manual (the sp
 
 Qualitative analysis (two paragraphs, citing specific test rows) is in section 13 of the notebook. In short: fine-tuning taught the model the manual (exact policy ids 20% to 80%, valid JSON 0% to 100%), and the remaining errors are confusion between look-alike clauses, one clause's action leaking into another, and invented specifics in the rationale.
 
+## Bonus - RAG Fallback Layer
+
+Section 14 of the notebook. The fine-tuned model answers closed-book; when it is unsure, it is asked again with the relevant policy clauses retrieved from a ChromaDB store. The code is in [`src/rag.py`](src/rag.py) (store, retrieval, threshold, pipelines) and [`src/inference.py`](src/inference.py) (`generate_scored`).
+
+| Spec requirement | Implementation |
+|---|---|
+| Confidence below a defined threshold, measured by perplexity | Each answer's perplexity, exp(mean negative log-likelihood) of its generated tokens, from the same `generate()` pass (`compute_transition_scores`). The threshold is calibrated on the 20 **validation** rows with Youden's J (wrong policy ids vs right ones); with fewer than 2 wrong or 2 right answers it falls back to the 75th percentile. The fallback fires when perplexity >= threshold |
+| ChromaDB vector store built from the domain documents | The policy manual the dataset was generated from: one document for each policy's rule and one for its required action (16), with `policy_id` / `topic` / `part` metadata, embedded with Chroma's default all-MiniLM-L6-v2 (ONNX, CPU). Rebuilt in memory from `data/policy_manual.json` on every run |
+| Retrieve relevant context and re-query the model | The scenario is the query; the top 3 distinct policies are retrieved, and their full rule and action text is put before the scenario in the user turn. The trained system prompt is unchanged, and the re-query uses the same greedy settings as section 10 |
+| Concrete before-and-after example in the notebook | One triggered test row, shown in full, chosen by a fixed rule: the first one the manual review labelled hallucinated whose RAG answer has the right policy ids (otherwise the largest ROUGE-L gain) |
+
+Retrieval alone, measured on CPU before any model call: for **16 of 16** test rows that have a policy, every gold policy id is among the 3 retrieved, and the top hit is a gold policy for all 16. The 4 other rows are not covered by the manual.
+
+Three pipelines are compared on the same 20 test rows with the section 10 metrics (no API quota): fine-tuned only, the gated fallback, and RAG on every row, to show whether gating by perplexity is worth it. The notebook also reports how many of the manually labelled hallucinations the perplexity threshold flagged.
+
+| Metric (test set, n=20) | Fine-tuned only | + RAG fallback (gated) | + RAG on every row |
+|---|---|---|---|
+| _Filled in from the Colab run of section 14_ | | | |
+
+Per-row results: `outputs/rag_results.jsonl`; threshold, calibration and summary: `outputs/rag_summary.json`; chart: `outputs/rag_perplexity.png`.
+
 ## How to Run
 
 1. Open the notebook with the Colab badge above and select a **T4 GPU** runtime.
 2. Add `HF_TOKEN`, `GROQ_API_KEY`, and `OPENROUTER_API_KEY` in the Colab Secrets panel.
 3. Run all cells.
+
+To run only the RAG bonus (section 14) without retraining: run the setup cell (section 0), then the cells of section 14. It loads the merged model from the Hub and needs no API key.

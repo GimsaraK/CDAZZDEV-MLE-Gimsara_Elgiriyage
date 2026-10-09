@@ -227,6 +227,36 @@ Every prompt given to an AI assistant during this assessment, in chronological o
 - Note: The first tests found a gap in the follow-up budget: an agent that used its one tool round had no turn left to answer. The follow-up now gets its tool round plus one answer turn. A tool request in that last turn is dropped, not left unanswered in the thread.
 - Note: Verified offline only: 21 new tests, every 3B and 3C notebook cell dry-run with scripted models (paths redirected to the scratchpad), and the dashboard smoke-tested headless with `streamlit.testing` against the real trace. Live notebook output for sections 6-13, the committed cache sample and the dashboard screenshot wait on fresh Groq quota.
 
+
+
+### Entry 19 - Task 2 bonus (RAG fallback layer) implementation planning
+
+```
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Now analyze the specification again @CDAZZDEV_Senior_MLE_Assessment_2026.pdf thoroughly. Then call EnterPlanMode to create a comprehensive plan for Task 2 Bonus RAG Fallback Layer. Make sure all requirements mentioned in the specification for this task is covered in the plan including the marking rubric for this task. Call AskUserQuestion for all architectural judgment and engineering decisions.', Date: 2026-10-09
+```
+
+- Scope: Task 2
+- Output: implementation plan for the Task 2 bonus RAG fallback layer, with the design decisions confirmed by the user:
+  - the trigger is answer perplexity, with the threshold calibrated on the validation split (Youden's J);
+  - the ChromaDB store holds the 16 policy-manual clauses, uses Chroma's default MiniLM embeddings, and is rebuilt in memory;
+  - retrieval takes the top 3 policies, and their excerpts go in the user turn;
+  - the RAG answer is kept whenever the fallback fires;
+  - evaluation compares fine-tuned only, gated RAG and always-RAG on the 20 test rows, with deterministic metrics only;
+  - the notebook shows one before-and-after example, chosen by a stated rule;
+  - the section runs standalone on a Colab T4.
+  No repository code changed by that planning step.
+
+
+
+### Entry 20 - Task 2 bonus (RAG fallback layer) implementation
+
+```
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 2 RAG fallback plan', Date: 2026-10-09
+```
+
+- Scope: Task 2
+- Files: new `task2_genai/src/rag.py`, `task2_genai/tests/test_rag.py`. Edited: `task2_genai/src/inference.py` (`generate_scored`, `perplexity_from_logprobs`), `task2_genai/src/eval_config.py` (RAG constants and paths), `task2_genai/src/prompts.py` (`RAG_USER_TEMPLATE`), `task2_genai/task2_finetuning.ipynb` (Bonus part, section 14), `task2_genai/requirements.txt` (`chromadb`), `task2_genai/README.md`, root `README.md`.
+
 ---
 
 
