@@ -79,3 +79,38 @@ LABEL_RUBRIC = (
 
 # Scenario text is cut to this many characters in the review table so it fits on screen.
 REVIEW_SCENARIO_CHARS = 160
+
+# ---------------------------------------------------------------- bonus: RAG fallback layer
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 2 RAG fallback plan', Date: 2026-10-09 (see CITATIONS.md Entry 20)
+
+RAG_RESULTS_PATH = config.OUTPUTS_DIR / "rag_results.jsonl"
+RAG_SUMMARY_PATH = config.OUTPUTS_DIR / "rag_summary.json"
+RAG_CHART_PATH = config.OUTPUTS_DIR / "rag_perplexity.png"
+
+# The store holds the policy manual: one document per policy for the rule and one for the required action.
+RAG_COLLECTION = "northwind_manual"
+# Cosine distance suits sentence embeddings, whose length carries no meaning.
+RAG_DISTANCE = "cosine"
+RAG_PART_RULE = "rule"
+RAG_PART_ACTION = "required_action"
+# Three policies cover the two-policy rows plus one look-alike clause, without flooding a 1.5B model.
+RAG_TOP_K_POLICIES = 3
+
+# Threshold calibration on the validation rows: "re-query when perplexity >= threshold".
+# Youden's J needs both classes; with fewer than RAG_MIN_CLASS wrong (or right) answers it is not
+# meaningful, so the threshold falls back to this percentile of the validation perplexities.
+RAG_MIN_CLASS = 2
+RAG_FALLBACK_PERCENTILE = 75
+RAG_METHOD_YOUDEN = "youden_j"
+RAG_METHOD_PERCENTILE = "percentile"
+
+# The three pipelines compared on the same test rows.
+RAG_NONE = "finetuned"
+RAG_GATED = "gated_rag"
+RAG_ALWAYS = "always_rag"
+RAG_PIPELINES = (RAG_NONE, RAG_GATED, RAG_ALWAYS)
+RAG_PIPELINE_LABELS = {
+    RAG_NONE: "Fine-tuned only",
+    RAG_GATED: "Fine-tuned + RAG fallback (gated)",
+    RAG_ALWAYS: "Fine-tuned + RAG on every row",
+}

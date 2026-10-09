@@ -175,10 +175,14 @@ def bertscore_f1(candidates: Sequence[str], references: Sequence[str]) -> List[f
     return [float(value) for value in f1.tolist()]
 
 
-def score_predictions(records: List[dict], manual_ids: set, rouge=rouge_l) -> Dict[str, List[dict]]:
-    """Per-row ROUGE-L (whole answer and two fields) and domain checks for each model."""
+def score_predictions(records: List[dict], manual_ids: set, rouge=rouge_l, keys: Sequence[str] = ec.MODEL_KEYS) -> Dict[str, List[dict]]:
+    """Per-row ROUGE-L (whole answer and two fields) and domain checks for each model.
+
+    `keys` names the answer fields to score: the two 2C models by default; the RAG bonus passes its three
+    pipelines, so both sections are scored by exactly the same code.
+    """
     scores = {}
-    for key in ec.MODEL_KEYS:
+    for key in keys:
         rows = [record for record in records if key in record]
         if not rows:
             continue

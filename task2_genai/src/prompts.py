@@ -137,6 +137,17 @@ def teacher_user(manual, topic: str, situation: str) -> str:
     )
 
 
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 2 RAG fallback plan', Date: 2026-10-09 (see CITATIONS.md Entry 20)
+# Bonus RAG fallback: the user turn of the re-query. The system turn stays the one the model was trained with,
+# so only this turn changes: the retrieved clauses come first, then the original scenario, verbatim.
+RAG_USER_TEMPLATE = """Relevant Northwind policy excerpts (retrieved for this question; use only the ones that apply, and answer ["NONE"] if none applies):
+
+{context}
+
+Scenario:
+{scenario}"""
+
+
 def write_prompt_files(manual=None) -> None:
     """Save the prompts the notebook appendix and the README point at."""
     config.PROMPTS_DIR.mkdir(parents=True, exist_ok=True)

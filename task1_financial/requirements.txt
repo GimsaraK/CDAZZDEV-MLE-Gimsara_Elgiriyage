@@ -1,32 +1,33 @@
 # Task 1 - Financial AI
-# Pin exact versions (pip freeze) after the final Colab run.
+# Exact versions tested locally (Python 3.10, all Task 1 tests passing). Libraries whose APIs the code depends on
+# are pinned exactly. numpy, pandas, requests and matplotlib are minimums, so Colab keeps its preinstalled stack.
 
 # Market data and numerics
-yfinance
-pandas
-numpy
+yfinance==1.7.0
+pandas>=2.2
+numpy>=1.26
 
 # News retrieval (Google News RSS fallback)
-feedparser
-requests
+feedparser==6.0.14
+requests>=2.31
 
 # Robustness
-tenacity
+tenacity==9.2.1
 
 # LLM inference. Both Groq and OpenRouter are called through the OpenAI-compatible API.
-openai
+openai==3.26.1
 
 # Structured output validation
-pydantic
+pydantic==2.13.5
 
 # Configuration
-python-dotenv
+python-dotenv==1.2.4
 
 # Report rendering (bonus)
-matplotlib
-markdown
-jinja2
+matplotlib>=3.8
+Markdown==3.10.3
+Jinja2==3.1.6
 
 # Testing and indicator cross-validation (ta is used only to verify our implementation)
-pytest
-ta
+pytest==9.1.1
+ta==0.11.0

@@ -1,8 +1,12 @@
 # Task 2 - Generative AI
 # torch is preinstalled on Colab GPU runtimes.
-# Pin exact versions (pip freeze) after the final Colab run.
+# Pinned exactly: the packages tested locally (Python 3.10, all Task 2 tests passing).
+# Not pinned: the GPU training and evaluation stack. Colab keeps its preinstalled versions of most of these
+# (pip install -r does not upgrade them), and the saved run did not record its versions, so a pin here would be
+# a guess. The code already tolerates version differences (e.g. SFTConfig arguments are filtered to the ones
+# the installed trl accepts). pandas, numpy and matplotlib are minimums, so Colab keeps its own stack.
 
-# Fine-tuning
+# Fine-tuning (Colab runtime versions)
 transformers
 peft
 trl
@@ -12,22 +16,24 @@ datasets
 huggingface_hub
 
 # Teacher-model data generation / LLM-as-judge
-groq
-openai
-pydantic
-python-dotenv
-tenacity
+groq==0.37.1
+openai==3.26.1
+pydantic==2.13.5
+python-dotenv==1.2.4
+tenacity==9.2.1
 
 # Evaluation
 evaluate
-rouge_score
+rouge_score==0.1.2
 bert_score
+
+# Bonus RAG fallback layer: the vector store (its default embedder, all-MiniLM-L6-v2, runs on CPU via ONNX)
+chromadb==1.5.9
 
 # Experiment tracking
 wandb
 
 # Analysis and plots
-pandas
-numpy
-matplotlib
-
+pandas>=2.2
+numpy>=1.26
+matplotlib>=3.8
