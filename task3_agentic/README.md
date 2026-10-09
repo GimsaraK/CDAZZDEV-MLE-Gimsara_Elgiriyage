@@ -5,7 +5,7 @@
 This task starts with a tool-using research agent (3A). It is later extended into a two-agent pipeline (Data Analyst and Research Writer) with structured handoffs, a critique loop, short-term and persistent memory, and full tool-call observability.
 
 **Research query:**
-> Analyse the current financial health and market sentiment of [TICKER]. Identify the top three risks to its share price over the next 90 days and suggest one data-driven hedge strategy.
+> Analyse the current financial health and market sentiment of AAPL. Identify the top three risks to its share price over the next 90 days and suggest one data-driven hedge strategy.
 
 **Status:** 3A implemented and executed (notebook sections 0-5); the main run is validated. 3B implemented and tested offline (notebook sections 6-9). 3C implemented and tested offline (notebook sections 10-13, plus the cache wrapper in §8). One full notebook re-execution with fresh LLM quota is still needed: the 3A section 5 fault run ran when every provider was at its daily limit, and sections 6-13 have not been executed live yet.
 
