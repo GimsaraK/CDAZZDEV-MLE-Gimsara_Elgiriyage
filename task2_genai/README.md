@@ -181,9 +181,27 @@ Retrieval alone, measured on CPU before any model call: for **16 of 16** test ro
 
 Three pipelines are compared on the same 20 test rows with the section 10 metrics (no API quota): fine-tuned only, the gated fallback, and RAG on every row, to show whether gating by perplexity is worth it. The notebook also reports how many of the manually labelled hallucinations the perplexity threshold flagged.
 
+Second Colab run (re-query prompt chosen on validation: `system_excerpts`, the excerpts in the system turn):
+
 | Metric (test set, n=20) | Fine-tuned only | + RAG fallback (gated) | + RAG on every row |
 |---|---|---|---|
-| _Filled in from the Colab run of section 14_ | | | |
+| policy_ids exact match (%) | 80 | 65 | 35 |
+| ROUGE-L F1, whole answer | 0.581 | 0.556 | 0.457 |
+| ROUGE-L F1, required_action | 0.582 | 0.536 | 0.425 |
+| ROUGE-L F1, rationale | 0.425 | 0.409 | 0.266 |
+| Answers with an id not in the manual (%) | 5 | 0 | 0 |
+| NONE on not-covered rows (%) | 75 | 100 | 100 |
+| Valid JSON, strict (%) | 100 | 100 | 100 |
+
+| Confidence gate and prompt choice | Value |
+|---|---|
+| Threshold (validation, Youden's J 0.8) | perplexity >= 1.3046 |
+| Fallback fired on | 7 of 20 test rows (0, 2, 4, 7, 8, 13, 17) |
+| Flagged rows the manual review labelled hallucinated | 6 of 7 (precision 86%), catching 6 of the 9 hallucinations |
+| Re-query layouts on validation, exact ids (closed-book: 75%) | NONE-hint 40%, excerpts first 60%, scenario first 55%, **system turn 70%** |
+| RAG answers that were `NONE` (test) | 17 of 20, including all 7 triggered rows |
+
+**Result: negative, reported as measured.** The detector and retrieval work, but the fine-tuned model collapses to `NONE` when the prompt carries policy text: on the 7 triggered rows the closed-book answer had the right ids 4 times and the RAG answer once. Gating limits the damage (65% vs 35% with RAG everywhere) but the fallback still costs 15 points of exact-id accuracy, and on validation no layout beat the closed-book answers. The before-and-after example (row 17: an invented NW-PRIVACY rule corrected to `NONE`) is a real fix, but on a not-covered row it benefits from the same NONE bias. The cause is training: the model only ever saw scenario-only prompts. The next step would be fine-tuning with retrieved excerpts in the prompt, including distractor policies (RAFT-style); until then, the perplexity signal is better used to route low-confidence answers to human review.
 
 Per-row results: `outputs/rag_results.jsonl`; threshold, calibration and summary: `outputs/rag_summary.json`; chart: `outputs/rag_perplexity.png`.
 
