@@ -28,6 +28,7 @@ from task2_genai.src.rag import (  # noqa: E402
     retrieval_recall,
     retrieve_policies,
     score_pipelines,
+    select_variant,
 )
 
 MANUAL = load_manual()
@@ -111,6 +112,39 @@ def test_context_and_requery_prompt_keep_the_scenario_and_system_turn():
     assert messages[1]["role"] == "user"
     assert messages[1]["content"].endswith(row["messages"][1]["content"])
     assert context in messages[1]["content"]
+
+
+def test_every_prompt_variant_carries_the_context_and_the_scenario():
+    row = load_test_rows()[0]
+    context = policy_context(["NW-GIFT"], MANUAL)
+    for variant in ec.RAG_VARIANT_ORDER:
+        messages = augmented_messages(row, context, variant)
+        joined = messages[0]["content"] + messages[1]["content"]
+        assert context in joined and row["messages"][1]["content"] in joined
+        assert messages[0]["content"].startswith(row["messages"][0]["content"])
+    # The system variant leaves the user turn exactly as in training.
+    system_variant = augmented_messages(row, context, "system_excerpts")
+    assert system_variant[1] == row["messages"][1]
+    assert row["messages"][0]["content"] != system_variant[0]["content"]
+    # Building a prompt never changes the dataset row itself.
+    assert context not in row["messages"][0]["content"]
+
+
+def test_variant_selection_prefers_exact_ids_and_reports_none_collapse():
+    rows = load_test_rows()[:4]
+    golds = [row["messages"][-1]["content"] for row in rows]
+    none = answer(["NONE"])
+    answers = {
+        "user_excerpts_none_hint": [none] * 4,
+        "user_excerpts_first": golds[:3] + [none],
+        "user_scenario_first": golds,
+        "system_excerpts": golds,
+    }
+    best, table = select_variant(rows, answers, MANUAL_IDS)
+    by_name = {entry["variant"]: entry for entry in table}
+    assert by_name["user_excerpts_none_hint"]["none_answers"] == 4
+    # user_scenario_first and system_excerpts tie on every score: the earlier-listed variant wins.
+    assert best == "user_scenario_first"
 
 
 # ---------------------------------------------------------------- confidence

@@ -1,0 +1,316 @@
+{
+  "note": "First Colab run of section 14 (2026-10-09), values copied from that run's notebook output. The re-query template ended with 'answer [\"NONE\"] if none applies', and the model answered NONE on all 20 test rows. The prompt was then chosen on the validation rows instead (see rag_summary.json).",
+  "template": "excerpts, then scenario, with an explicit NONE instruction",
+  "threshold": 1.3046,
+  "threshold_method": "youden_j",
+  "calibration_rows": {
+    "n": 20,
+    "wrong": 5
+  },
+  "first_pass_same_as_section_10": 20,
+  "retrieval_recall": {
+    "rows": 16,
+    "hits": 16,
+    "recall_pct": 100.0
+  },
+  "triggered_ids": [
+    0,
+    2,
+    4,
+    7,
+    8,
+    13,
+    17
+  ],
+  "rag_answers_none": 20,
+  "pipelines": {
+    "ROUGE-L F1, whole answer (canonical JSON)": {
+      "finetuned": "0.581",
+      "gated_rag": "0.545",
+      "always_rag": "0.400"
+    },
+    "ROUGE-L F1, required_action field": {
+      "finetuned": "0.582",
+      "gated_rag": "0.526",
+      "always_rag": "0.370"
+    },
+    "ROUGE-L F1, rationale field": {
+      "finetuned": "0.425",
+      "gated_rag": "0.377",
+      "always_rag": "0.199"
+    },
+    "Valid JSON, strict (%)": {
+      "finetuned": "100",
+      "gated_rag": "100",
+      "always_rag": "100"
+    },
+    "policy_ids exact match (%)": {
+      "finetuned": "80",
+      "gated_rag": "65",
+      "always_rag": "20"
+    },
+    "Answers with an id not in the manual (%)": {
+      "finetuned": "5",
+      "gated_rag": "0",
+      "always_rag": "0"
+    },
+    "NONE on not-covered rows (%)": {
+      "finetuned": "75",
+      "gated_rag": "100",
+      "always_rag": "100"
+    }
+  },
+  "detector": {
+    "wrong_policy_ids": {
+      "bad": 4,
+      "flagged_bad": 3
+    },
+    "hallucinated": {
+      "bad": 9,
+      "flagged_bad": 6
+    },
+    "flagged": 7
+  },
+  "rows": [
+    {
+      "id": 0,
+      "situation": "compliant",
+      "review_label": "hallucinated",
+      "perplexity": 1.372,
+      "fallback": "RAG",
+      "retrieved": "NW-ACCEPT, NW-REMOTE, NW-PRIVACY",
+      "gold_ids": "NW-ACCEPT",
+      "first_ids": "NW-ACCEPT",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 1,
+      "situation": "compliant",
+      "review_label": "correct",
+      "perplexity": 1.188,
+      "fallback": "-",
+      "retrieved": "NW-EXPENSE, NW-GIFT, NW-REMOTE",
+      "gold_ids": "NW-EXPENSE",
+      "first_ids": "NW-EXPENSE",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 2,
+      "situation": "clear_breach",
+      "review_label": "hallucinated",
+      "perplexity": 1.383,
+      "fallback": "RAG",
+      "retrieved": "NW-GIFT, NW-EXPENSE, NW-REMOTE",
+      "gold_ids": "NW-GIFT",
+      "first_ids": "NW-ACCEPT",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "no / no"
+    },
+    {
+      "id": 3,
+      "situation": "compliant",
+      "review_label": "correct",
+      "perplexity": 1.3,
+      "fallback": "-",
+      "retrieved": "NW-LEAVE, NW-EXPENSE, NW-SAFETY",
+      "gold_ids": "NW-LEAVE",
+      "first_ids": "NW-LEAVE",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 4,
+      "situation": "compliant",
+      "review_label": "hallucinated",
+      "perplexity": 1.32,
+      "fallback": "RAG",
+      "retrieved": "NW-PRIVACY, NW-ACCEPT, NW-REMOTE",
+      "gold_ids": "NW-PRIVACY",
+      "first_ids": "NW-PRIVACY",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 5,
+      "situation": "borderline",
+      "review_label": "partially_correct",
+      "perplexity": 1.238,
+      "fallback": "-",
+      "retrieved": "NW-REMOTE, NW-SAFETY, NW-REPORT",
+      "gold_ids": "NW-REMOTE",
+      "first_ids": "NW-REMOTE",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 6,
+      "situation": "clear_breach",
+      "review_label": "hallucinated",
+      "perplexity": 1.102,
+      "fallback": "-",
+      "retrieved": "NW-REPORT, NW-EXPENSE, NW-PRIVACY",
+      "gold_ids": "NW-REPORT",
+      "first_ids": "NW-REPORT",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 7,
+      "situation": "borderline",
+      "review_label": "hallucinated",
+      "perplexity": 1.435,
+      "fallback": "RAG",
+      "retrieved": "NW-SAFETY, NW-LEAVE, NW-REPORT",
+      "gold_ids": "NW-SAFETY",
+      "first_ids": "NW-SAFETY",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 8,
+      "situation": "compliant",
+      "review_label": "partially_correct",
+      "perplexity": 1.356,
+      "fallback": "RAG",
+      "retrieved": "NW-REMOTE, NW-ACCEPT, NW-SAFETY",
+      "gold_ids": "NW-REMOTE",
+      "first_ids": "NW-REMOTE",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 9,
+      "situation": "borderline",
+      "review_label": "partially_correct",
+      "perplexity": 1.275,
+      "fallback": "-",
+      "retrieved": "NW-SAFETY, NW-REPORT, NW-EXPENSE",
+      "gold_ids": "NW-SAFETY",
+      "first_ids": "NW-SAFETY",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 10,
+      "situation": "not_covered",
+      "review_label": "correct",
+      "perplexity": 1.046,
+      "fallback": "-",
+      "retrieved": "NW-ACCEPT, NW-PRIVACY, NW-REMOTE",
+      "gold_ids": "NONE",
+      "first_ids": "NONE",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / yes"
+    },
+    {
+      "id": 11,
+      "situation": "not_covered",
+      "review_label": "correct",
+      "perplexity": 1.047,
+      "fallback": "-",
+      "retrieved": "NW-ACCEPT, NW-REPORT, NW-PRIVACY",
+      "gold_ids": "NONE",
+      "first_ids": "NONE",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / yes"
+    },
+    {
+      "id": 12,
+      "situation": "two_policy",
+      "review_label": "partially_correct",
+      "perplexity": 1.194,
+      "fallback": "-",
+      "retrieved": "NW-GIFT, NW-EXPENSE, NW-REMOTE",
+      "gold_ids": "NW-GIFT, NW-EXPENSE",
+      "first_ids": "NW-GIFT, NW-EXPENSE",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 13,
+      "situation": "two_policy",
+      "review_label": "hallucinated",
+      "perplexity": 1.322,
+      "fallback": "RAG",
+      "retrieved": "NW-SAFETY, NW-REMOTE, NW-PRIVACY",
+      "gold_ids": "NW-SAFETY, NW-REMOTE",
+      "first_ids": "NW-LOCKOUT, NW-ACCEPT",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "no / no"
+    },
+    {
+      "id": 14,
+      "situation": "clear_breach",
+      "review_label": "correct",
+      "perplexity": 1.181,
+      "fallback": "-",
+      "retrieved": "NW-PRIVACY, NW-ACCEPT, NW-REMOTE",
+      "gold_ids": "NW-PRIVACY",
+      "first_ids": "NW-PRIVACY",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 15,
+      "situation": "not_covered",
+      "review_label": "correct",
+      "perplexity": 1.048,
+      "fallback": "-",
+      "retrieved": "NW-PRIVACY, NW-ACCEPT, NW-REPORT",
+      "gold_ids": "NONE",
+      "first_ids": "NONE",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / yes"
+    },
+    {
+      "id": 16,
+      "situation": "two_policy",
+      "review_label": "hallucinated",
+      "perplexity": 1.247,
+      "fallback": "-",
+      "retrieved": "NW-PRIVACY, NW-ACCEPT, NW-LEAVE",
+      "gold_ids": "NW-LEAVE, NW-PRIVACY",
+      "first_ids": "NW-LEAVE, NW-PRIVACY",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 17,
+      "situation": "not_covered",
+      "review_label": "hallucinated",
+      "perplexity": 1.41,
+      "fallback": "RAG",
+      "retrieved": "NW-EXPENSE, NW-GIFT, NW-REPORT",
+      "gold_ids": "NONE",
+      "first_ids": "NW-PRIVACY",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "no / yes"
+    },
+    {
+      "id": 18,
+      "situation": "compliant",
+      "review_label": "correct",
+      "perplexity": 1.255,
+      "fallback": "-",
+      "retrieved": "NW-GIFT, NW-EXPENSE, NW-REMOTE",
+      "gold_ids": "NW-GIFT",
+      "first_ids": "NW-GIFT",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "yes / no"
+    },
+    {
+      "id": 19,
+      "situation": "borderline",
+      "review_label": "hallucinated",
+      "perplexity": 1.253,
+      "fallback": "-",
+      "retrieved": "NW-GIFT, NW-EXPENSE, NW-REMOTE",
+      "gold_ids": "NW-GIFT",
+      "first_ids": "NW-ACCEPT",
+      "rag_ids": "NONE",
+      "ids_right_before_after": "no / no"
+    }
+  ]
+}

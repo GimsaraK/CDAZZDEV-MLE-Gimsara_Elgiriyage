@@ -104,6 +104,12 @@ RAG_FALLBACK_PERCENTILE = 75
 RAG_METHOD_YOUDEN = "youden_j"
 RAG_METHOD_PERCENTILE = "percentile"
 
+# Re-query prompt variants (prompts.RAG_PROMPT_VARIANTS), tried on the validation rows in this order; the
+# first is the template of the first Colab run, which collapsed to NONE on every test row.
+RAG_FIRST_VARIANT = "user_excerpts_none_hint"
+RAG_VARIANT_ORDER = ("user_excerpts_none_hint", "user_excerpts_first", "user_scenario_first", "system_excerpts")
+RAG_ATTEMPT1_PATH = config.OUTPUTS_DIR / "rag_attempt1_summary.json"
+
 # The three pipelines compared on the same test rows.
 RAG_NONE = "finetuned"
 RAG_GATED = "gated_rag"
