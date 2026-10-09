@@ -1,0 +1,155 @@
+{
+  "ticker": "AAPL",
+  "query": "Analyse the current financial health and market sentiment of AAPL. Identify the top three risks to its share price over the next 90 days and suggest one data-driven hedge strategy.",
+  "session_id": "c2e2b8452ead",
+  "generated_at": "2026-10-08T20:22:40+00:00",
+  "status": "validated",
+  "report": {
+    "ticker": "AAPL",
+    "financial_health": {
+      "summary": "Apple’s share price of $340.42 sits just 1.4 % below its 52‑week high of $345.34, while both the 50‑day (322.29) and 200‑day (290.07) moving averages remain well above the current level, confirming a long‑term uptrend. Momentum is mixed: the RSI of 61.2 is in the neutral zone, but the MACD histogram of –0.43 signals short‑term bearish pressure. Valuation is tight, with an analyst consensus target of $339.35, only 0.3 % below the current price, and a forward P/E of 35.5. Profitability remains strong, with a profit margin of 27.6 % and free cash flow of $107.7 B, while the debt‑to‑equity ratio of 78.4 % indicates moderate leverage. The 90‑day expected move of ±8.33 % and an annualised volatility of 16.8 % suggest limited upside potential in the near term.",
+      "market_sentiment": "The sentiment score of +0.12 is neutral, supported by three positive headlines such as “Apple (AAPL) Stock Trades Above Fair Value On Cash Flow Estimates” and “Apple (AAPL) Has a New Catalyst That Could Drive Its Next Upgrade Cycle.” Two negative headlines – “Nvidia Earned About Twice as Much as Apple Last Quarter. Its Stock Is Worth Only About 20% More.” and “Apple (AAPL) Stock Looks Fully Priced On Its 145% Five Year Run” – temper enthusiasm, indicating that investors are wary of valuation compression.",
+      "key_metrics": [
+        {
+          "name": "Current price",
+          "value": "$340.42",
+          "source_tool": "get_price_data"
+        },
+        {
+          "name": "1‑yr return",
+          "value": "+32.4 %",
+          "source_tool": "get_price_data"
+        },
+        {
+          "name": "52‑week % from high",
+          "value": "‑1.4 %",
+          "source_tool": "get_price_data"
+        },
+        {
+          "name": "SMA‑50",
+          "value": "322.29",
+          "source_tool": "get_price_data"
+        },
+        {
+          "name": "RSI‑14",
+          "value": "61.2",
+          "source_tool": "get_price_data"
+        },
+        {
+          "name": "MACD histogram",
+          "value": "‑0.43",
+          "source_tool": "get_price_data"
+        },
+        {
+          "name": "90‑day expected move",
+          "value": "±8.33 %",
+          "source_tool": "calculate_volatility"
+        },
+        {
+          "name": "Annualised vol (20 d)",
+          "value": "16.8 %",
+          "source_tool": "calculate_volatility"
+        },
+        {
+          "name": "Debt‑to‑equity",
+          "value": "78.4 %",
+          "source_tool": "get_price_data"
+        },
+        {
+          "name": "Free cash flow",
+          "value": "$107.7 B",
+          "source_tool": "get_price_data"
+        },
+        {
+          "name": "Analyst consensus target",
+          "value": "$339.35",
+          "source_tool": "web_search"
+        },
+        {
+          "name": "Sentiment score",
+          "value": "+0.12",
+          "source_tool": "llm_sentiment"
+        }
+      ]
+    },
+    "risks": [
+      {
+        "name": "Earnings‑report surprise",
+        "description": "A modest earnings miss could push the share price below the 1‑σ low of $313.2, as the current price is only 0.3 % above the analyst target and the MACD histogram is negative, indicating potential short‑term pullback.",
+        "evidence": [
+          {
+            "source_tool": "get_price_data",
+            "detail": "MACD histogram of –0.43 (negative)",
+            "url": null
+          },
+          {
+            "source_tool": "web_search",
+            "detail": "Analyst consensus target of $339.35, 0.3 % below current price",
+            "url": null
+          },
+          {
+            "source_tool": "calculate_volatility",
+            "detail": "90‑day expected move ±8.33 % (band_1sigma_low $313.2)",
+            "url": null
+          }
+        ]
+      },
+      {
+        "name": "Supply‑chain / component shortages",
+        "description": "Apple’s heavy reliance on global supply chains could delay product launches, potentially eroding the 16.4 % YoY revenue growth and impacting near‑term earnings.",
+        "evidence": [
+          {
+            "source_tool": "get_price_data",
+            "detail": "Revenue growth of 16.4 % (YoY)",
+            "url": null
+          },
+          {
+            "source_tool": "get_news",
+            "detail": "Headline “Apple (AAPL) Has a New Catalyst That Could Drive Its Next Upgrade Cycle” indicating upcoming product cycle",
+            "url": null
+          }
+        ]
+      },
+      {
+        "name": "Regulatory / antitrust scrutiny",
+        "description": "Valuation concerns and potential regulatory actions could weigh on the stock, as highlighted by negative headlines and a high 5‑year run.",
+        "evidence": [
+          {
+            "source_tool": "get_news",
+            "detail": "Negative headline “Apple (AAPL) Stock Looks Fully Priced On Its 145% Five Year Run”",
+            "url": null
+          },
+          {
+            "source_tool": "get_news",
+            "detail": "Negative headline “Nvidia Earned About Twice as Much as Apple Last Quarter. Its Stock Is Worth Only About 20% More.”",
+            "url": null
+          }
+        ]
+      }
+    ],
+    "hedge": {
+      "strategy": "Protective put",
+      "instrument": "AAPL 90‑day put, strike $313",
+      "rationale": "The put protects against a downside move beyond the 1‑σ low, which is likely if earnings miss or supply‑chain delays occur. It also covers the risk of regulatory pressure that could compress valuation.",
+      "sizing": "Buy 1 put per 100 shares (strike $313) to hedge roughly 8 % of the current price, matching the expected 90‑day move.",
+      "annualised_vol_pct": 16.8,
+      "expected_move_90d_pct": 8.33,
+      "trade_offs": "Premium cost reduces upside potential beyond $313; the hedge limits gains if the stock rallies above the strike."
+    },
+    "data_gaps": []
+  },
+  "validation_warnings": [],
+  "tools_used": [
+    "calculate_volatility",
+    "get_news",
+    "get_price_data",
+    "llm_sentiment",
+    "web_search"
+  ],
+  "revisions": 0,
+  "agent_models": {
+    "openai/gpt-oss-20b": 6
+  },
+  "report_model": "openai/gpt-oss-20b",
+  "error": null
+}

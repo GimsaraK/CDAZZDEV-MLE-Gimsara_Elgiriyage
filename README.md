@@ -9,15 +9,15 @@ The assessment has three independent tasks covering Financial AI, Generative AI,
 | Task | Domain | Folder | Notebook | Status |
 |---|---|---|---|---|
 | Task 1 | Financial AI - LLM-powered equity research assistant | [`task1_financial/`](task1_financial/) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage/blob/main/task1_financial/task1_equity_research.ipynb) | 1A, 1B, and the research brief done locally |
-| Task 2 | Generative AI - domain-specific QLoRA fine-tuning pipeline | [`task2_genai/`](task2_genai/) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage/blob/main/task2_genai/task2_finetuning.ipynb) | 2A dataset done; 2B training and 2C evaluation notebook ready for a Colab T4 run |
-| Task 3 | Agentic Workflows - multi-agent financial research system | [`task3_agentic/`](task3_agentic/) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage/blob/main/task3_agentic/task3_multi_agent.ipynb) | In progress |
+| Task 2 | Generative AI - domain-specific QLoRA fine-tuning pipeline | [`task2_genai/`](task2_genai/) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage/blob/main/task2_genai/task2_finetuning.ipynb) | 2A, 2B and 2C done: Colab T4 run saved with outputs, model on the Hub, evaluation, manual review and analysis written |
+| Task 3 | Agentic Workflows - multi-agent financial research system | [`task3_agentic/`](task3_agentic/) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage/blob/main/task3_agentic/task3_multi_agent.ipynb) | 3A done locally (fault-demo re-run pending); 3B and 3C (memory, cache, trace, Streamlit dashboard) implemented and tested offline; full live notebook run pending |
 
 ## Submission Links
 
 | Deliverable | Link |
 |---|---|
 | GitHub repository | https://github.com/GimsaraK/CDAZZDEV-MLE-Gimsara_Elgiriyage |
-| Task 2 fine-tuned model (Hugging Face Hub) | _TBD_ |
+| Task 2 fine-tuned model (Hugging Face Hub) | [huggingface.co/GimsaraK/northwind-compliance-qwen2.5-1.5b](https://huggingface.co/GimsaraK/northwind-compliance-qwen2.5-1.5b) |
 | Video walkthrough (optional) | _TBD_ |
 
 ## Repository Structure
@@ -52,6 +52,7 @@ CDAZZDEV-MLE-Gimsara_Elgiriyage/
     |-- requirements.txt
     |-- task3_multi_agent.ipynb
     |-- src/                   # Tools, agents, memory, tracing
+    |-- tests/                 # Offline tests (scripted models, synthetic data)
     |-- cache/                 # Persistent research briefs keyed by ticker and date
     |-- logs/                  # agent_trace.jsonl (every tool call, inputs, output, duration)
     `-- outputs/               # Final research reports
@@ -88,7 +89,7 @@ No API keys or tokens are stored in this repository. Every notebook reads creden
 
 ## Free-Tier Tooling
 
-Everything runs on free tiers: Google Colab, Groq / OpenRouter free models, Hugging Face Hub, yfinance, LangChain / LangGraph / CrewAI, Weights & Biases (personal), and duckduckgo-search.
+Everything runs on free tiers: Google Colab, Groq / OpenRouter free models, Hugging Face Hub, yfinance, LangChain / LangGraph / CrewAI, Weights & Biases (personal), and DuckDuckGo search through `ddgs` (the renamed `duckduckgo-search` package).
 
 ## Citations and Reflection
 

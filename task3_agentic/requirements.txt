@@ -1,26 +1,29 @@
 # Task 3 - Agentic Workflows
-# Pin exact versions (pip freeze) after the final Colab run.
+# Exact versions tested locally (Python 3.10). Libraries whose APIs the code depends on are pinned exactly.
+# numpy, pandas and requests are minimums, so Colab keeps its preinstalled scientific stack.
 
-# Agent framework
-langchain
-langchain-core
-langgraph
-langchain-groq
-langchain-openai
-# crewai
+# Agent framework (LangGraph) and LLM adapters: Groq first, OpenRouter (OpenAI-compatible) as fallback
+langgraph==1.2.14
+langchain-core==1.6.8
+langchain-groq==1.1.3
+langchain-openai==1.7.0
 
-# Tools
-yfinance
-pandas
-numpy
-duckduckgo-search
+# web_search tool. ddgs is the renamed duckduckgo-search package (same project, same DDGS API).
+ddgs==9.16.0
 
-# LLM inference and structured output
-groq
-openai
-pydantic
-python-dotenv
+# Reused Task 1 modules: market data, indicators, news, headline sentiment
+yfinance==1.7.0
+pandas>=2.2
+numpy>=1.26
+feedparser==6.0.14
+requests>=2.31
+tenacity==9.2.1
+openai==3.26.1
+pydantic==2.13.5
+python-dotenv==1.2.4
 
-# Observability (bonus)
-langsmith
-streamlit
+# Tests
+pytest==9.1.1
+
+# Observability bonus: the trace dashboard (task3_agentic/dashboard/app.py). Altair comes with it.
+streamlit==1.65.0
