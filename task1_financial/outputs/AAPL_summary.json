@@ -1,54 +1,54 @@
 {
   "ticker": "AAPL",
-  "current_price": 337.54,
+  "current_price": 334.15,
   "week_52_high": 345.34,
   "week_52_low": 243.42,
-  "pe_ratio": 38.71,
-  "ytd_return": 0.245,
+  "pe_ratio": 38.32,
+  "ytd_return": 0.2325,
   "momentum": {
-    "score": 0.7143,
-    "label": "Strong Bullish",
+    "score": 0.4286,
+    "label": "Bullish",
     "components": [
       {
         "name": "price_vs_sma_50",
-        "value": 0.0475,
+        "value": 0.0367,
         "vote": 1,
         "rationale": "Price relative to the 50-day SMA (short-term trend)"
       },
       {
         "name": "price_vs_sma_200",
-        "value": 0.1637,
+        "value": 0.1507,
         "vote": 1,
         "rationale": "Price relative to the 200-day SMA (long-term trend)"
       },
       {
         "name": "trend_regime",
-        "value": 0.1109,
+        "value": 0.1099,
         "vote": 1,
         "rationale": "SMA-50 above SMA-200 = golden-cross regime"
       },
       {
         "name": "macd_vs_signal",
-        "value": -0.6179,
+        "value": -0.6053,
         "vote": -1,
         "rationale": "MACD line above its signal line = positive momentum"
       },
       {
         "name": "macd_histogram_direction",
-        "value": 0.3779,
+        "value": 0.4129,
         "vote": 1,
         "rationale": "MACD histogram change over 5 sessions (accelerating vs fading)"
       },
       {
         "name": "rsi_zone",
-        "value": 58.5715,
+        "value": 53.2213,
         "vote": 1,
         "rationale": "RSI 50-70 bullish, 30-50 bearish; beyond the bands = stretched (no vote, flagged)"
       },
       {
         "name": "bollinger_pct_b",
-        "value": 0.6973,
-        "vote": 1,
+        "value": 0.4155,
+        "vote": -1,
         "rationale": "%B in the upper half of the bands bullish, lower half bearish; outside = stretched"
       }
     ],
@@ -57,28 +57,28 @@
   },
   "company_name": "Apple Inc.",
   "currency": "USD",
-  "as_of_date": "2026-10-08",
+  "as_of_date": "2026-10-09",
   "week_52_high_date": "2026-09-22",
   "week_52_low_date": "2026-01-20",
   "pe_source": "trailingPE",
   "pe_unavailable_reason": null,
-  "forward_pe": 35.22,
-  "ytd_return_pct": 24.5,
+  "forward_pe": 34.85,
+  "ytd_return_pct": 23.25,
   "ytd_base_date": "2025-12-31",
   "ytd_base_price": 271.12,
   "ytd_unavailable_reason": null,
   "latest_indicators": {
-    "SMA_50": 322.229,
-    "SMA_200": 290.0559,
-    "RSI_14": 58.5715,
-    "MACD": 3.3309,
-    "MACD_Signal": 3.9488,
-    "MACD_Hist": -0.6179,
-    "BB_Middle": 335.0264,
-    "BB_Upper": 341.3936,
-    "BB_Lower": 328.6593,
-    "BB_PctB": 0.6973,
-    "BB_Bandwidth": 0.038
+    "SMA_50": 322.3068,
+    "SMA_200": 290.3899,
+    "RSI_14": 53.2213,
+    "MACD": 3.2381,
+    "MACD_Signal": 3.8434,
+    "MACD_Hist": -0.6053,
+    "BB_Middle": 335.2645,
+    "BB_Upper": 341.8602,
+    "BB_Lower": 328.6688,
+    "BB_PctB": 0.4155,
+    "BB_Bandwidth": 0.0393
   },
   "news_count": 15,
   "news_sources": [
@@ -86,10 +86,10 @@
   ],
   "data_quality": {
     "source": "live",
-    "fetched_at": "2026-10-08T15:04:06+00:00",
-    "rows": 753,
+    "fetched_at": "2026-10-09T15:10:21+00:00",
+    "rows": 754,
     "start_date": "2023-10-09",
-    "end_date": "2026-10-08",
+    "end_date": "2026-10-09",
     "span_years": 3.0,
     "meets_min_history": true,
     "duplicate_rows_removed": 0,
