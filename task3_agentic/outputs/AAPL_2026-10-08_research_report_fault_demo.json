@@ -1,0 +1,16 @@
+{
+  "ticker": "AAPL",
+  "query": "Analyse the current financial health and market sentiment of AAPL. Identify the top three risks to its share price over the next 90 days and suggest one data-driven hedge strategy.",
+  "session_id": "0b580b84c86d",
+  "generated_at": "2026-10-08T20:22:43+00:00",
+  "status": "failed",
+  "report": null,
+  "validation_warnings": [
+    "The report could not be produced (AllModelsFailed: every model is skipped for this session (daily limits))."
+  ],
+  "tools_used": [],
+  "revisions": 0,
+  "agent_models": {},
+  "report_model": null,
+  "error": "AllModelsFailed: every model is skipped for this session (daily limits)"
+}
