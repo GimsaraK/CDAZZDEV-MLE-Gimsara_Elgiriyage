@@ -106,6 +106,10 @@ def run_model(source: str, rows: List[dict]) -> List[str]:
 
 
 # ---------------------------------------------------------------- bonus: answers with a confidence score
+# RAG pipeline stages that live here (the full map is at the top of src/rag.py):
+#   STAGE 4 - confidence: perplexity_from_logprobs() scores the closed-book answer.
+#   STAGE 7 - generation: generate_scored() is called twice per row, for the closed-book answer and for the
+#             re-query with the retrieved excerpts (the augmented prompt from rag.augmented_messages()).
 # AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 2 RAG fallback plan', Date: 2026-10-09 (see CITATIONS.md Entry 20)
 
 
@@ -176,7 +180,9 @@ def generate_scored(model, tokenizer, messages_list: List[List[dict]]) -> List[S
                 output_scores=True,
             )
         new_tokens = output.sequences[0, encoded["input_ids"].shape[1]:]
-        # One log-prob per generated token, aligned with new_tokens.
+        # STAGE 4 - confidence. output.scores holds the logits at every generation step; normalize_logits=True
+        # applies log-softmax, and compute_transition_scores picks out the log-prob of the token actually chosen.
+        # Result: one log-prob per generated token, aligned with new_tokens.
         logprobs = model.compute_transition_scores(output.sequences, output.scores, normalize_logits=True)[0]
         perplexity = perplexity_from_logprobs(logprobs.tolist(), new_tokens.tolist(), stops)
         text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()

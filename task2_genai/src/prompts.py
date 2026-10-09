@@ -138,14 +138,42 @@ def teacher_user(manual, topic: str, situation: str) -> str:
 
 
 # AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 2 RAG fallback plan', Date: 2026-10-09 (see CITATIONS.md Entry 20)
-# Bonus RAG fallback: the user turn of the re-query. The system turn stays the one the model was trained with,
-# so only this turn changes: the retrieved clauses come first, then the original scenario, verbatim.
+# Bonus RAG fallback: how the retrieved clauses are given to the model on the re-query.
+# The first Colab run used RAG_USER_TEMPLATE and the model answered ["NONE"] on every test row: the explicit
+# NONE instruction in an unfamiliar, longer prompt pulled the 1.5B model to the one answer it was handed.
+# The re-query prompt is therefore chosen on the validation rows from these variants (rag.select_variant).
+# Each variant is (where the excerpts go, template). "user": the user turn is the template; "system": the
+# template is appended to the trained system prompt and the user turn stays the plain scenario, as in training.
 RAG_USER_TEMPLATE = """Relevant Northwind policy excerpts (retrieved for this question; use only the ones that apply, and answer ["NONE"] if none applies):
 
 {context}
 
 Scenario:
 {scenario}"""
+
+RAG_PROMPT_VARIANTS = {
+    # The first-run template, kept as the baseline the selection must beat.
+    "user_excerpts_none_hint": ("user", RAG_USER_TEMPLATE),
+    # The same layout without the NONE instruction.
+    "user_excerpts_first": ("user", """Relevant Northwind policy excerpts:
+
+{context}
+
+Scenario:
+{scenario}"""),
+    # The scenario first, as every training user turn starts, then the excerpts as reference.
+    "user_scenario_first": ("user", """{scenario}
+
+Northwind policy excerpts that may be relevant:
+
+{context}"""),
+    # The excerpts as reference text in the system turn; the user turn is exactly the training format.
+    "system_excerpts": ("system", """
+
+Northwind policy excerpts retrieved for the next question (reference text from the policy manual):
+
+{context}"""),
+}
 
 
 def write_prompt_files(manual=None) -> None:

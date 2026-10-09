@@ -4,6 +4,34 @@ The fine-tuned model answers closed-book first. When that answer's perplexity is
 calibrated on the validation rows, the policy clauses most similar to the scenario are retrieved from a
 ChromaDB store built from the policy manual, and the model is asked again with those clauses in the user
 turn. Everything except the two model calls is here and runs on CPU, so it is tested offline.
+
+Pipeline map (each stage is marked with a "STAGE n" banner below):
+
+  INDEXING (once per run, before any question)
+    STAGE 1  Chunking ............ manual_documents()   policy manual -> 16 chunks (rule + required action per policy)
+    STAGE 2  Embedding ........... inside build_store() Chroma turns each chunk into a 384-dim vector (all-MiniLM-L6-v2)
+    STAGE 3  Storing / indexing .. build_store()        vectors + text + metadata go into an HNSW index (cosine distance)
+
+  ANSWERING (per question)
+    STAGE 4  Confidence gate ..... inference.generate_scored() + calibrate_threshold() + build_records()
+                                   closed-book answer -> perplexity -> re-query only if perplexity >= threshold
+    STAGE 5  Retrieval ........... retrieve_policies()  the scenario is embedded the same way and the nearest
+                                   chunks are found; they are reduced to the top 3 distinct policies
+    STAGE 6  Augmentation ........ policy_context() + augmented_messages()  retrieved text is put into the prompt
+    STAGE 7  Generation (re-query) inference.generate_scored() on the augmented prompt (called from the notebook)
+
+  EVALUATION
+    STAGE 8  select_variant() (prompt layout chosen on validation), score_pipelines(), detector_report(),
+             retrieval_recall(), choose_example(), and the files and chart.
+
+Retrieval method: DENSE retrieval (semantic vector search), not BM25. BM25 is a sparse, lexical method that
+scores documents by shared words (term frequency x inverse document frequency). Here both the chunks and
+the question are turned into sentence-embedding vectors by the same model (all-MiniLM-L6-v2, a
+sentence-transformers bi-encoder), and relevance is the cosine similarity between them, so a scenario about
+"a supplier dinner during a tender" can match the gift clause without sharing its exact words. Chroma finds the
+nearest vectors with an HNSW (Hierarchical Navigable Small World) approximate-nearest-neighbour index. There
+is no keyword (BM25) component, no hybrid scoring, and no re-ranker; the only post-processing is collapsing
+chunks to distinct policies (STAGE 5).
 """
 # AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 2 RAG fallback plan', Date: 2026-10-09 (see CITATIONS.md Entry 20)
 
@@ -18,16 +46,23 @@ from . import eval_config as ec
 from .eval_metrics import (
     TABLE_ROWS,
     answer_ids,
+    canonical_answer,
     domain_metrics,
     gold_answer,
     parse_answer,
+    rouge_l,
     score_predictions,
     summarize,
 )
 from .manual import load_manual, policy_by_id
-from .prompts import RAG_USER_TEMPLATE
+from .prompts import RAG_PROMPT_VARIANTS
 
-# ---------------------------------------------------------------- the vector store
+# ================================================================ INDEXING: build the vector store
+# ---------------------------------------------------------------- STAGE 1 - CHUNKING
+# The "documents" are the policy manual the training data was generated from (data/policy_manual.json).
+# Chunking strategy: structural, not fixed-size. Each policy has two natural parts, its rule and its required
+# action, so each part becomes one chunk (8 policies x 2 = 16 chunks). The chunks are short (one to three
+# sentences), so no chunk needs splitting and no overlap window is needed.
 
 
 def manual_documents(manual: Optional[Dict] = None) -> Tuple[List[str], List[str], List[dict]]:
@@ -37,8 +72,14 @@ def manual_documents(manual: Optional[Dict] = None) -> Tuple[List[str], List[str
     starts with the policy id and title, so a retrieved chunk never loses the policy it belongs to.
     """
     manual = manual if manual is not None else load_manual()
+    # Three parallel lists, the shape Chroma's collection.add() expects:
+    #   ids       - a unique key per chunk, e.g. "NW-GIFT:rule"
+    #   texts     - the chunk text that gets embedded (and returned on retrieval)
+    #   metadatas - fields stored next to the vector, used to map a retrieved chunk back to its policy
     ids, texts, metadatas = [], [], []
     for policy in manual["policies"]:
+        # Prefixing every chunk with the policy id and title gives the embedding the policy's name as
+        # context, and keeps a chunk readable on its own when it is retrieved.
         head = f"{policy['id']} {policy['title']}."
         for part, label, body in (
             (ec.RAG_PART_RULE, "Rule", policy["rule"]),
@@ -50,6 +91,13 @@ def manual_documents(manual: Optional[Dict] = None) -> Tuple[List[str], List[str
     return ids, texts, metadatas
 
 
+# ---------------------------------------------------------------- STAGE 2 - EMBEDDING and STAGE 3 - STORING
+# Both happen in build_store(). There is no separate embed() call in this file: the collection is created with
+# an embedding function, and Chroma calls it on the chunk texts inside collection.add() (STAGE 2), then writes
+# each vector with its text and metadata into the collection's HNSW index (STAGE 3). Queries are embedded by
+# the same function inside collection.query() (STAGE 5), so chunks and questions live in the same vector space.
+
+
 def build_store(manual: Optional[Dict] = None, embedding_function=None, name: str = ec.RAG_COLLECTION):
     """An in-memory ChromaDB collection of the manual's clauses.
 
@@ -59,16 +107,30 @@ def build_store(manual: Optional[Dict] = None, embedding_function=None, name: st
     """
     import chromadb
 
+    # STAGE 3 (storage setup): an in-memory ChromaDB client. Nothing is written to disk; the store is rebuilt
+    # from the manual on every run (16 chunks take well under a second).
     client = chromadb.EphemeralClient()
     if name in [collection.name for collection in client.list_collections()]:
         client.delete_collection(name)
+    # The index type is HNSW (approximate nearest-neighbour graph) and its distance is cosine:
+    # cosine distance = 1 - cosine similarity, so 0 means same direction (same meaning) and 2 means opposite.
     kwargs = {"configuration": {"hnsw": {"space": ec.RAG_DISTANCE}}}
+    # STAGE 2 (embedding model): with no embedding_function, Chroma uses its default, all-MiniLM-L6-v2
+    # (a sentence-transformers model run through ONNX on CPU, 384-dimensional output, ~80 MB download the
+    # first time). The tests pass a tiny deterministic one instead.
     if embedding_function is not None:
         kwargs["embedding_function"] = embedding_function
     collection = client.create_collection(name, **kwargs)
+    # STAGE 1 output -> STAGE 2 + 3: add() embeds every chunk text and stores vector + text + metadata.
     ids, texts, metadatas = manual_documents(manual)
     collection.add(ids=ids, documents=texts, metadatas=metadatas)
     return collection
+
+
+# ================================================================ ANSWERING: retrieve, augment, re-query
+# ---------------------------------------------------------------- STAGE 5 - RETRIEVAL (dense vector search)
+# (STAGE 4, the confidence gate that decides whether retrieval happens at all, is further down: see
+# calibrate_threshold() and build_records(); the perplexity itself comes from inference.generate_scored().)
 
 
 def retrieve_policies(collection, scenario: str, k: int = ec.RAG_TOP_K_POLICIES) -> List[str]:
@@ -77,7 +139,12 @@ def retrieve_policies(collection, scenario: str, k: int = ec.RAG_TOP_K_POLICIES)
     Every chunk is ranked (the store is small), then distinct policy ids are kept in rank order, so a policy
     whose rule and action both match is counted once and k always means k different policies.
     """
+    # query() embeds the scenario with the same model as the chunks (query embedding), then returns the chunks
+    # ordered by cosine distance, nearest first. This is the dense-retrieval step: no keyword matching.
+    # n_results = all 16 chunks, because the ranking is then reduced to policies below.
     result = collection.query(query_texts=[scenario], n_results=collection.count(), include=["metadatas"])
+    # Post-processing (chunk -> document): the two chunks of one policy can both rank high, so walk the ranked
+    # chunks and keep each policy id the first time it appears, until k distinct policies are found.
     ranked: List[str] = []
     for metadata in result["metadatas"][0]:
         policy_id = metadata["policy_id"]
@@ -88,8 +155,15 @@ def retrieve_policies(collection, scenario: str, k: int = ec.RAG_TOP_K_POLICIES)
     return ranked
 
 
+# ---------------------------------------------------------------- STAGE 6 - AUGMENTATION (prompt construction)
+# The retrieved policy ids are turned back into text and placed in the re-query prompt. Note the model gets
+# the FULL policy (rule and action) for each retrieved id, not only the chunk that matched, so it never sees
+# half a policy.
+
+
 def policy_context(policy_ids: Sequence[str], manual: Optional[Dict] = None) -> str:
     """The full text of the retrieved policies, in retrieval order, for the re-query prompt."""
+    # The text comes from the manual itself, not from the stored chunks, so the excerpts are exact policy wording.
     policies = policy_by_id(manual if manual is not None else load_manual())
     blocks = []
     for policy_id in policy_ids:
@@ -110,14 +184,28 @@ def first_pass_messages(row: dict) -> List[dict]:
     return row["messages"][:2]
 
 
-def augmented_messages(row: dict, context: str) -> List[dict]:
-    """The re-query: the trained system turn unchanged; the user turn is the excerpts, then the scenario."""
-    system = row["messages"][0]
-    user = {"role": "user", "content": RAG_USER_TEMPLATE.format(context=context, scenario=scenario_of(row))}
+def augmented_messages(row: dict, context: str, variant: str = ec.RAG_FIRST_VARIANT) -> List[dict]:
+    """The re-query prompt for one prompt variant (see prompts.RAG_PROMPT_VARIANTS).
+
+    "user" variants keep the trained system turn and put the excerpts and the scenario in the user turn.
+    The "system" variant appends the excerpts to the system turn and keeps the user turn exactly as in
+    training (the plain scenario).
+    """
+    position, template = RAG_PROMPT_VARIANTS[variant]
+    # Copies (dict(...)), so building a prompt never changes the dataset row itself.
+    system, user = dict(row["messages"][0]), dict(row["messages"][1])
+    if position == "system":
+        system["content"] = system["content"] + template.format(context=context)
+    else:
+        user["content"] = template.format(context=context, scenario=scenario_of(row))
     return [system, user]
+    # STAGE 7 - GENERATION (the re-query) is not in this file: the notebook passes these messages to
+    # inference.generate_scored(), the same greedy decoding as the first answer.
 
 
-# ---------------------------------------------------------------- the confidence threshold
+# ---------------------------------------------------------------- STAGE 4 - CONFIDENCE GATE (when to retrieve)
+# The first answer's perplexity comes from inference.generate_scored(). calibrate_threshold() sets the cut-off
+# on the validation rows, and build_records() applies it: retrieval + re-query only when perplexity >= threshold.
 
 
 def is_wrong(answer_text: str, row: dict, manual_ids: set) -> bool:
@@ -153,7 +241,36 @@ def calibrate_threshold(perplexities: Sequence[float], wrong: Sequence[bool]) ->
     return best["threshold"], ec.RAG_METHOD_YOUDEN, table
 
 
-# ---------------------------------------------------------------- the three pipelines
+# ================================================================ EVALUATION
+# ---------------------------------------------------------------- STAGE 8a - choosing the prompt layout (validation)
+
+
+def select_variant(rows: List[dict], answers: Dict[str, Sequence[str]], manual_ids: set) -> Tuple[str, List[dict]]:
+    """(best variant, table): the re-query prompt chosen on the validation rows, with RAG on every row.
+
+    Ranked by exact policy ids (the task's main correctness check), then whole-answer ROUGE-L, then the
+    listed order (simpler first). "NONE answers" shows a collapse like the first run's at a glance.
+    """
+    golds = [gold_answer(row) for row in rows]
+    table = []
+    for order, variant in enumerate(ec.RAG_VARIANT_ORDER):
+        if variant not in answers:
+            continue
+        texts = list(answers[variant])
+        checks = [domain_metrics(text, gold, manual_ids, row["situation"]) for text, gold, row in zip(texts, golds, rows)]
+        rouge = rouge_l([canonical_answer(text) for text in texts], golds)
+        table.append({
+            "variant": variant,
+            "policy_exact_pct": 100.0 * sum(c["policy_exact"] for c in checks) / len(rows),
+            "rouge_l": mean(rouge),
+            "none_answers": sum(1 for text in texts if answer_ids(parse_answer(text)[0]) == [config.NONE_POLICY_ID]),
+            "order": order,
+        })
+    best = max(table, key=lambda entry: (round(entry["policy_exact_pct"], 9), round(entry["rouge_l"], 9), -entry["order"]))
+    return best["variant"], table
+
+
+# ---------------------------------------------------------------- STAGE 8b - the three pipelines (test rows)
 
 
 def build_records(
@@ -171,6 +288,7 @@ def build_records(
     records = []
     for index, row in enumerate(rows):
         first_answer, rag_answer = first[index], rag[index]
+        # STAGE 4 applied: this line is the confidence gate. At or above the threshold the RAG answer is used.
         # No perplexity means an empty answer: confidence is unknown, so the fallback fires.
         triggered = first_answer.perplexity is None or first_answer.perplexity >= threshold
         records.append(
@@ -297,7 +415,7 @@ def per_row_table(records: List[dict], scores: Dict[str, List[dict]], review_row
     return table
 
 
-# ---------------------------------------------------------------- files and chart
+# ---------------------------------------------------------------- STAGE 8c - files and chart
 
 
 def write_results(records: List[dict], path=None) -> None:

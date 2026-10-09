@@ -255,7 +255,8 @@ Every prompt given to an AI assistant during this assessment, in chronological o
 ```
 
 - Scope: Task 2
-- Files: new `task2_genai/src/rag.py`, `task2_genai/tests/test_rag.py`. Edited: `task2_genai/src/inference.py` (`generate_scored`, `perplexity_from_logprobs`), `task2_genai/src/eval_config.py` (RAG constants and paths), `task2_genai/src/prompts.py` (`RAG_USER_TEMPLATE`), `task2_genai/task2_finetuning.ipynb` (Bonus part, section 14), `task2_genai/requirements.txt` (`chromadb`), `task2_genai/README.md`, root `README.md`.
+- Files: new `task2_genai/src/rag.py`, `task2_genai/tests/test_rag.py`. Edited: `task2_genai/src/inference.py` (`generate_scored`, `perplexity_from_logprobs`), `task2_genai/src/eval_config.py` (RAG constants and paths), `task2_genai/src/prompts.py` (`RAG_USER_TEMPLATE`, `RAG_PROMPT_VARIANTS`), `task2_genai/src/eval_metrics.py` (`keys` argument on `score_predictions`), `task2_genai/task2_finetuning.ipynb` (Bonus part, section 14), `task2_genai/requirements.txt` (`chromadb`), `task2_genai/README.md`, root `README.md`.
+- Note: The first Colab run used one re-query template ending in "answer ["NONE"] if none applies", and the model answered NONE on all 20 test rows; its numbers are kept in `task2_genai/outputs/rag_attempt1_summary.json`. With the user's approval, the re-query prompt is now chosen on the validation rows from four layouts (`select_variant`), before the test rows are run.
 
 ---
 
