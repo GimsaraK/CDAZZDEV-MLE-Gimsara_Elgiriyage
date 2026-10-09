@@ -8,8 +8,8 @@ along as the ToolMessage artifact.
 Market data, indicators, headlines and headline sentiment reuse the tested Task 1 code
 (task1_financial.src), including its live -> snapshot fallbacks.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16): per-agent toolkits
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16): per-agent toolkits
 
 import math
 import re
@@ -115,12 +115,15 @@ def period_start(period: str, index: pd.DatetimeIndex) -> pd.Timestamp:
     last = index[-1]
     if period == "max":
         return index[0]
+    # Turn the period text into a calendar start date: "ytd" -> 1 January of the latest year,
+    # "6mo" -> 6 months before the last session (int("6mo"[:-2]) = 6), "2y" -> 2 years before.
     if period == "ytd":
         start = pd.Timestamp(year=last.year, month=1, day=1)
     elif period.endswith("mo"):
         start = last - pd.DateOffset(months=int(period[:-2]))
     else:  # "1y", "2y", ...
         start = last - pd.DateOffset(years=int(period[:-1]))
+    # That date may be a weekend or holiday, so use the first actual trading session on or after it.
     inside = index[index >= start]
     return inside[0] if len(inside) else index[0]
 
@@ -159,11 +162,14 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         logger.warning("Fundamentals unavailable for %s: %s", ticker, exc)
         return Fundamentals(unavailable_reason=f"yfinance .info failed: {exc}")
     values: Dict[str, Optional[float]] = {}
+    # Rename Yahoo's camelCase keys to our field names. A missing or non-numeric value becomes None.
     for yahoo_key, name in config.FUNDAMENTAL_KEYS.items():
         number = _finite(info.get(yahoo_key))
         if name in config.FUNDAMENTAL_FRACTION_FIELDS:
+            # Yahoo gives margins and growth as fractions (0.27); store them as percent (27.0).
             values[f"{name}_pct"] = _pct(number)
         else:
+            # Ratios are rounded to 4 decimals; dollar amounts (market cap, cash flow) are kept whole.
             values[name] = _round(number, 4) if number is not None and abs(number) < 1e6 else number
     if all(value is None for value in values.values()):
         return Fundamentals(unavailable_reason="yfinance .info returned none of the fundamentals fields")
@@ -180,6 +186,7 @@ def derive_signals(df: pd.DataFrame, price: Optional[float], flags: Iterable[str
     hist = _finite(last.get(t1_indicators.COL_MACD_HIST))
     pct_b = _finite(last.get(t1_indicators.COL_BB_PCT_B))
     if price is not None and sma_s is not None and sma_l is not None:
+        # Names of the moving averages the price is currently above (0, 1 or 2 of them).
         above = [name for name, level in (("SMA-50", sma_s), ("SMA-200", sma_l)) if price > level]
         signals.append(f"Price is above {', '.join(above)}" if above else "Price is below both SMA-50 and SMA-200")
         signals.append("SMA-50 above SMA-200 (long-term uptrend)" if sma_s > sma_l else "SMA-50 below SMA-200 (long-term downtrend)")
@@ -197,11 +204,14 @@ def derive_signals(df: pd.DataFrame, price: Optional[float], flags: Iterable[str
             signals.append("Price is above the upper Bollinger Band")
         elif pct_b < t1_config.BB_PCT_B_LOWER:
             signals.append("Price is below the lower Bollinger Band")
+    # Add Task 1's momentum flags (crosses, stretched RSI, ...) without repeating a line already listed.
     signals.extend(flag for flag in flags if flag not in signals)
     return signals
 
 
 def _headline_key(text: str) -> str:
+    # Lowercase, turn every run of punctuation into a space, then collapse spaces:
+    # "Apple's Q3 -- beats!" -> "apple s q3 beats". Two titles that differ only in punctuation match.
     return " ".join(_NON_WORD_HEADLINE.sub(" ", text.lower()).split())
 
 
@@ -218,6 +228,8 @@ def verify_headlines(headlines: Sequence[str], known: Sequence[str]) -> List[str
         if not key:
             continue
         for candidate in known_keys:
+            # Accept an exact match, or one title inside the other (a trimmed title). Containment only
+            # counts when both are long, otherwise a short string like "apple" would match everything.
             if key == candidate or (
                 min(len(key), len(candidate)) >= config.HEADLINE_MATCH_MIN_CHARS and (key in candidate or candidate in key)
             ):
@@ -228,6 +240,7 @@ def verify_headlines(headlines: Sequence[str], known: Sequence[str]) -> List[str
 
 def simplify_query(query: str) -> str:
     """Drop search operators, quotes and punctuation, keep the first few words."""
+    # 'site:reuters.com "Apple" risk!' -> remove "site:reuters.com" -> remove quotes and "!" -> 'Apple risk'.
     text = _SEARCH_OPERATOR.sub(" ", query)
     text = _NON_WORD.sub(" ", text)
     words = text.split()
@@ -289,6 +302,8 @@ class ResearchTools:
         return self._traced("web_search", self._web_search, query=query)
 
     def _traced(self, name: str, func: Callable[..., ToolResult], **args: Any) -> ToolResult:
+        # Every public tool method funnels through here: run_traced checks access, injects faults in the
+        # demo, times the call, turns exceptions into an error envelope and writes the trace line.
         return run_traced(self.ctx, name, func, args, ERROR_HINTS[name], agent=self.agent_name, allowed=self.allowed)
 
     # get_price_data -------------------------------------------------------------
@@ -315,20 +330,27 @@ class ResearchTools:
         if market.ohlcv.empty:
             return _result(config.STATUS_EMPTY, name, error=f"No price rows for {symbol}", hint=ERROR_HINTS[name])
 
+        # Reuse Task 1: indicators over the whole history, then its summary (52-week range, P/E, YTD, momentum).
         df = t1_indicators.add_indicators(market.ohlcv)
         stock = t1_summary.build_summary(market, df)
+        # Keep the full frame in the session: calculate_volatility reuses it instead of downloading again,
+        # and get_news uses the company name to build a better news query.
         self.ctx.frames[symbol] = df
         if stock.company_name:
             self.ctx.company_names[symbol] = stock.company_name
 
+        # Return over the *requested* period, even though more history was fetched for the warm-up.
         price_col = _price_column(df)
         start = period_start(period_key, df.index)
         start_price = _finite(df.loc[start, price_col])
         end_price = _finite(df[price_col].iloc[-1])
         period_return = (end_price / start_price - 1) if start_price and end_price else None
         price = stock.current_price
+        # Negative = below the 52-week high (e.g. -0.014 = 1.4% under it).
         from_high = (price / stock.week_52_high - 1) if price and stock.week_52_high else None
 
+        # Only the last few bars go to the LLM, as compact rows of [date, open, high, low, close, volume];
+        # 750 rows of history would overflow the free tier's tokens-per-minute budget.
         bars = df.tail(config.RECENT_BARS)
         recent = [
             [
@@ -380,10 +402,13 @@ class ResearchTools:
         except (TypeError, ValueError):
             requested = config.DEFAULT_NEWS_COUNT
             warnings.append(f"n={n!r} is not an integer; used {requested}")
+        # Clamp n into [MIN, MAX] instead of failing: n=100 becomes 25, n=0 becomes 1, with a warning.
         count = min(max(requested, config.MIN_NEWS_COUNT), config.MAX_NEWS_COUNT)
         if count != requested:
             warnings.append(f"n={requested} clamped to {count} (allowed {config.MIN_NEWS_COUNT}-{config.MAX_NEWS_COUNT})")
 
+        # Task 1's news chain: yfinance first, then Google News RSS, then the saved snapshot if both
+        # return too few. `minimum` is the count below which the snapshot is tried.
         result = t1_news.get_headlines(
             symbol,
             company_name=self.ctx.company_names.get(symbol),
@@ -427,6 +452,7 @@ class ResearchTools:
         name = "calculate_volatility"
         symbol = validate_ticker(ticker)
         try:
+            # An LLM sometimes sends "20" instead of 20; a digit string is accepted, anything else is validated as is.
             window = vol.validate_window(int(window) if isinstance(window, str) and window.isdigit() else window)
         except ValueError as exc:
             return _result(
@@ -461,14 +487,19 @@ class ResearchTools:
                 hint=f"Use a window of at most {len(returns)} trading days.",
                 source=source,
             )
+        # Annualised vol over the requested window, e.g. 20 days -> 0.168 (16.8%).
         annual = vol.annualised_vol(returns, window)
+        # Where today's reading sits among the past year's readings of the same window (regime: low/normal/elevated).
         rolling = vol.rolling_annualised_vol(returns, window)
         percentile = vol.vol_percentile(rolling, annual)
+        # The hedge numbers: scale annual vol to the 90-day horizon, then turn it into price bands around
+        # today's price. The 1-sigma low band is the natural strike for a protective put.
         spot = _finite(df[t1_config.PRICE_COL_RAW].iloc[-1]) or _finite(prices.iloc[-1])
         days = vol.horizon_trading_days()
         move = vol.expected_move(annual, days)
         low_1, high_1 = vol.price_band(spot, move, 1)
         low_2, _ = vol.price_band(spot, move, 2)
+        # The same estimator over ~1 month, ~1 quarter and ~1 year, so the agent can see the trend in volatility.
         comparison = {f"{w}d": _pct(vol.annualised_vol(returns, w)) for w in config.VOL_COMPARISON_WINDOWS}
         payload = VolatilityResult(
             ticker=symbol,
@@ -493,6 +524,7 @@ class ResearchTools:
     # llm_sentiment --------------------------------------------------------------
     def _llm_sentiment(self, headlines: List[str]) -> ToolResult:
         name = "llm_sentiment"
+        # Accept one bare string, then strip blanks and drop case-insensitive duplicates, keeping the order.
         if isinstance(headlines, str):
             headlines = [headlines]
         seen = set()
@@ -512,7 +544,7 @@ class ResearchTools:
         warnings: List[str] = []
         # Only headlines a news or search tool returned this session are scored. In a live 3B run
         # Agent A (no news access) invented headlines and scored them; this check stops that.
-        # AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+        # AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
         verified = verify_headlines(clean, self.ctx.known_headlines())
         if len(verified) < len(clean):
             warnings.append(f"Dropped {len(clean) - len(verified)} headline(s) not returned by get_news or web_search this session")
@@ -532,6 +564,8 @@ class ResearchTools:
             warnings.append(f"Scored the first {config.MAX_SENTIMENT_HEADLINES} of {len(clean)} headlines")
             clean = clean[: config.MAX_SENTIMENT_HEADLINES]
 
+        # Build the LLM clients once per session (lazily, on the first sentiment call) and reuse them;
+        # this also keeps a model that hit its daily cap marked as skipped for later calls.
         if self.ctx.llm_clients is None:
             load_api_keys()
             self.ctx.llm_clients = build_sentiment_clients()
@@ -543,6 +577,8 @@ class ResearchTools:
                 hint=ERROR_HINTS[name],
             )
 
+        # Wrap the plain strings in Task 1's NewsResult so its tested scorer (one validated LLM call per
+        # headline, repair, provider fallback, confidence-weighted average) can be reused unchanged.
         news = t1_news.NewsResult(
             ticker=self.ctx.ticker, items=[t1_news.NewsItem(title=title, source="agent") for title in clean]
         )
@@ -562,6 +598,7 @@ class ResearchTools:
                 warnings=warnings,
             )
 
+        # The most confident headlines of one label (e.g. the 3 strongest negatives), for evidence in the report.
         def top(label: str) -> List[ScoredHeadline]:
             chosen = sorted((i for i in scored.items if i.sentiment == label), key=lambda i: -i.confidence)
             return [
@@ -602,7 +639,11 @@ class ResearchTools:
             plan.append(("text-simplified", "text", simplified, None))
 
         failures: List[str] = []
+        # True if any failure was temporary (rate limit / timeout). Decides the final status:
+        # "error" (try again later) vs "empty" (the search worked but found nothing).
         transient = False
+        # Outer loop: each step of the fallback plan. Inner loop: a short retry of the same step,
+        # used only for temporary errors.
         for label, kind, query_text, timelimit in plan:
             for attempt in range(1, config.SEARCH_ATTEMPTS_PER_BACKEND + 1):
                 try:
@@ -619,10 +660,11 @@ class ResearchTools:
                     break
                 hits = _to_hits(kind, raw or [])
                 if hits:
+                    # First step that returns usable hits wins; earlier failures go along as warnings.
                     payload = SearchResults(query=text, effective_query=query_text, backend=label, hits=hits)
                     return _result(config.STATUS_OK, name, data=payload, source="ddgs", warnings=failures[-3:])
                 failures.append(f"{label}: no usable results")
-                break
+                break  # results came back but were empty: move to the next plan step, not a retry
 
         status = config.STATUS_ERROR if transient else config.STATUS_EMPTY
         return _result(
@@ -698,6 +740,11 @@ def build_tools(ctx_or_tools: Any, names: Optional[Sequence[str]] = None) -> Lis
     """
     toolkit = ctx_or_tools if isinstance(ctx_or_tools, ResearchTools) else ResearchTools(ctx_or_tools)
 
+    # These small wrappers exist for two reasons. Their names and arguments are exactly the spec's
+    # signatures (LangChain shows them to the model). And they close over `toolkit`, so each agent's
+    # tools are bound to that agent's session and access list without passing them as arguments.
+    # Each returns (content, artifact): the model reads the compact JSON, while the typed ToolResult
+    # rides along on the ToolMessage for code that needs it (the trace printer, the tests).
     def get_price_data(ticker: str, period: str = config.DEFAULT_PERIOD) -> Tuple[str, ToolResult]:
         result = toolkit.get_price_data(ticker, period)
         return result.to_llm_json(), result
@@ -734,7 +781,10 @@ def build_tools(ctx_or_tools: Any, names: Optional[Sequence[str]] = None) -> Lis
             func=functions[name],
             name=name,
             description=TOOL_DESCRIPTIONS[name],
+            # The Pydantic args schema becomes the JSON schema the LLM sees; LangChain validates the
+            # model's arguments against it before the function runs.
             args_schema=_ARG_SCHEMAS[name],
+            # Tells LangChain the function returns (content, artifact) rather than a single value.
             response_format="content_and_artifact",
         )
         for name in selected

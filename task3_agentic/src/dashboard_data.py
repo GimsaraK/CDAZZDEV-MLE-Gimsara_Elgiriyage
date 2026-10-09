@@ -1,5 +1,5 @@
 """Data functions behind the Streamlit trace dashboard (dashboard/app.py). Pure pandas, tested offline."""
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
 
 import json
 from pathlib import Path
@@ -50,6 +50,8 @@ def filter_trace(
     statuses: Optional[Iterable[str]] = None,
 ) -> pd.DataFrame:
     """Keep rows matching every non-empty filter."""
+    # Start with "keep every row", then AND in one condition per filter. An empty filter means "no
+    # restriction" (the sidebar's nothing-selected state), so it is skipped rather than matching nothing.
     mask = pd.Series(True, index=frame.index)
     for column, allowed in (("session_id", sessions), ("agent", agents), ("tool", tools), ("status", statuses)):
         allowed = list(allowed or [])
@@ -78,6 +80,9 @@ def per_session(frame: pd.DataFrame) -> pd.DataFrame:
     if frame.empty:
         return pd.DataFrame(columns=["session_id", "started", "agents", "calls", "not_ok", "tool_time_s"])
     grouped = frame.groupby("session_id", sort=False)
+    # Named aggregation: each keyword is an output column = (input column, how to reduce it per session).
+    # The lambdas receive that session's values: unique agent names, a count of non-"ok" statuses, and the
+    # summed duration converted from milliseconds to seconds.
     table = grouped.agg(
         started=("timestamp", "min"),
         agents=("agent", lambda values: ", ".join(sorted(set(values)))),
@@ -97,10 +102,13 @@ def timeline(frame: pd.DataFrame) -> pd.DataFrame:
         return frame.assign(start_s=[], end_s=[], call=[])
     finished = frame["timestamp"]
     started = finished - pd.to_timedelta(frame["duration_ms"].fillna(0), unit="ms")
+    # groupby + transform("min") gives every row the start time of its *own* session (same length as the
+    # frame), so each session's chart starts at 0 seconds.
     session_start = started.groupby(frame["session_id"]).transform("min")
     out = frame.copy()
     out["start_s"] = (started - session_start).dt.total_seconds().round(3)
     out["end_s"] = (finished - session_start).dt.total_seconds().round(3)
+    # cumcount numbers the rows within each session 0, 1, 2, ...; +1 makes the call numbers start at 1.
     out["call"] = out.groupby("session_id").cumcount() + 1
     out["label"] = out["call"].astype(str) + ". " + out["tool"]
     return out

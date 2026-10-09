@@ -3,7 +3,7 @@
 agent.py sends the *_SYSTEM templates as the system role and the *_USER templates as
 the user role. {placeholders} are filled with str.format.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
 
 # The research agent. It gets a goal and tool descriptions, never a fixed order of calls.
 AGENT_SYSTEM = """You are an autonomous equity research agent. Answer the user's research question with evidence you gather yourself using your tools.
@@ -74,7 +74,7 @@ Return the report again, matching the schema exactly (three risks, each with at 
 
 # =============================================================================
 # 3B: two-agent pipeline (Agent A = Data Analyst, Agent B = Research Writer)
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
 # =============================================================================
 
 # Agent A's role. Its tool list is bound in code; this text only explains it.
@@ -165,7 +165,7 @@ Your notes:
 {notes}"""
 
 # 3C short-term memory: a question asked on the same conversation thread after a research run.
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
 FOLLOWUP = """[Follow-up question] {question}
 
 The tool results earlier in this conversation are your memory. Answer from them, cite the exact values, and name the tool result you used. Call a tool only if those results do not contain the answer. Reply in 2-4 sentences."""

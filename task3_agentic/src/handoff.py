@@ -5,7 +5,7 @@ Nothing is passed as a raw string. The numeric fields of the Data Analyst's brie
 clarification answer are filled from that agent's own tool results in code, so they cannot be
 hallucinated; the LLMs write only the interpretive text around them.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
 
 import json
 import re
@@ -25,6 +25,7 @@ RequestKind = Literal["score_headlines", "volatility_window", "price_period", "m
 MessageKind = Literal["task", "data_brief", "clarification_request", "clarification_response", "final_report"]
 REQUEST_KINDS: Tuple[str, ...] = RequestKind.__args__  # type: ignore[attr-defined]
 
+# A number with an optional sign, optional thousands groups and optional decimals: "-0.23", "1,234.5", "+12".
 _NUMBER = re.compile(r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?")
 # Characters models use for minus signs and thin spaces; normalised before numbers are read.
 _TEXT_FIXES = {"−": "-", "‑": "-", "–": "-", " ": " ", " ": " ", " ": " "}
@@ -213,6 +214,8 @@ def _latest(ctx: SessionContext, tool: str, agent: str, since: int = 0):
 
 
 def tool_status(ctx: SessionContext, agent: str, tools: Sequence[str]) -> Dict[str, str]:
+    # Per tool: "ok" if any call by this agent succeeded; otherwise the status of its latest attempt
+    # ("error" / "empty"); "not_called" if the agent never tried it.
     status = {}
     for tool in tools:
         if ctx.results_for(tool, agent=agent):
@@ -226,9 +229,12 @@ def tool_status(ctx: SessionContext, agent: str, tools: Sequence[str]) -> Dict[s
 def build_brief_numbers(ctx: SessionContext, agent: str = config.AGENT_A_NAME) -> DataBrief:
     """The brief's numeric blocks from A's latest successful tool results. Gaps are named, not invented."""
     statuses = tool_status(ctx, agent, config.AGENT_A_TOOLS)
+    # The newest *successful* result of each of A's tools (None if that tool never succeeded).
+    # Only A's own calls count, filtered by agent name, so B's results can never leak into the brief.
     price_rec = _latest(ctx, "get_price_data", agent)
     vol_rec = _latest(ctx, "calculate_volatility", agent)
     sent_rec = _latest(ctx, "llm_sentiment", agent)
+    # Every tool that did not end "ok" is listed as a gap with its error, so B knows what is missing.
     gaps: List[str] = []
     for tool, status in statuses.items():
         if status == "not_called" and tool == "llm_sentiment":
@@ -275,7 +281,11 @@ def _key(name: str) -> str:
 
 def lookup_metric(name: str, price: Optional[PriceData], volatility: Optional[VolatilityResult]) -> Optional[float]:
     """Find a numeric metric by (loose) name in A's latest price and volatility results."""
+    # Names are compared after removing case and punctuation, so B's "Forward P/E" finds the field "forward_pe"
+    # ("forwardpe" == "forwardpe").
     wanted = _key(name)
+    # One flat dict of every numeric field A has: top-level price fields, each indicator, each fundamental,
+    # and the volatility fields. Nested blocks are flattened so a single lookup covers them all.
     candidates: Dict[str, Any] = {}
     if price is not None:
         candidates.update(price.model_dump(exclude={"indicators", "fundamentals", "recent_bars", "recent_bars_columns"}))
@@ -284,6 +294,7 @@ def lookup_metric(name: str, price: Optional[PriceData], volatility: Optional[Vo
     if volatility is not None:
         candidates.update(volatility.model_dump(exclude={"comparison_pct"}))
     for key, value in candidates.items():
+        # bool is a subclass of int in Python, so it is excluded explicitly.
         if _key(key) == wanted and isinstance(value, (int, float)) and not isinstance(value, bool):
             return float(value)
     return None
@@ -298,14 +309,18 @@ def build_response(
     fulfilled_by: str = "agent",
 ) -> ClarificationResponse:
     """A's typed answer: values come from A's tool results made after the request (index `since`)."""
+    # Only calls made after the request (ctx.history[since:]) are A's answer; anything earlier is ignored,
+    # so an old sentiment score cannot be passed off as a reply to this request.
     tools_used = [r.tool for r in ctx.history[since:] if r.agent == agent and not r.denied]
     values: Dict[str, Any] = {}
+    # One branch per request kind: find the matching tool result and copy its typed data into the response.
     if request.request_kind == "score_headlines":
         rec = _latest(ctx, "llm_sentiment", agent, since)
         if rec:
             values["sentiment"] = rec.result.data
     elif request.request_kind == "volatility_window":
         records = ctx.results_for("calculate_volatility", agent=agent, since=since)
+        # Prefer a result for exactly the window B asked for; if A used another window, take its latest one.
         exact = [r for r in records if r.result.data.window == request.window]
         if records:
             values["volatility"] = (exact or records)[0].result.data
@@ -321,12 +336,15 @@ def build_response(
                 current_price=data.current_price,
             )
     else:
+        # metric_check may be answered from A's earlier results too (no `since`): the metric was already
+        # retrieved, and the question is only "what is its value".
         price_rec = _latest(ctx, "get_price_data", agent)
         vol_rec = _latest(ctx, "calculate_volatility", agent)
         value = lookup_metric(request.metric or "", price_rec.result.data if price_rec else None, vol_rec.result.data if vol_rec else None)
         if value is not None:
             values.update({"metric_name": request.metric, "metric_value": value})
     found = bool(values)
+    # **values unpacks whichever typed field was found (sentiment, volatility, period_return or metric_*).
     return ClarificationResponse(
         request_kind=request.request_kind,
         status="ok" if found else "failed",
@@ -357,10 +375,14 @@ def expected_value(response: ClarificationResponse) -> Optional[Tuple[float, flo
 
 def report_numbers(report: ResearchReport) -> List[float]:
     """Every number written anywhere in the report."""
+    # Serialise the whole report (every section, evidence item and the hedge) to one string, so a number
+    # counts wherever B wrote it.
     text = report.model_dump_json()
+    # Models often write "−0.23" with a Unicode minus; normalise it so the regex reads it as negative.
     for bad, good in _TEXT_FIXES.items():
         text = text.replace(bad, good)
     numbers = []
+    # Thousands separators are removed before conversion ("1,234.5" -> 1234.5).
     for match in _NUMBER.findall(text):
         try:
             numbers.append(float(match.replace(",", "")))
@@ -381,6 +403,8 @@ def check_incorporation(report: ResearchReport, response: Optional[Clarification
     target = expected_value(response)
     if target is not None:
         value, tolerance, label = target
+        # Incorporated = A's value (within rounding tolerance) appears somewhere in the report. E.g. a
+        # returned score of 0.2258 is satisfied by "+0.23" (tolerance 0.01) but not by "0.36".
         if not any(abs(number - value) <= tolerance for number in report_numbers(report)):
             issues.append(
                 f"The report does not use the Data Analyst's {label} ({value}). Cite this value where it changes "

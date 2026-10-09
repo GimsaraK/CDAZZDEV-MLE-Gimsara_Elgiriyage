@@ -1,6 +1,6 @@
 """The 3B pipeline with scripted models: order of handoffs, the critique round trip, tool restriction
 in all three layers, per-agent trace attribution, and the degraded paths."""
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
 
 import json
 from typing import List

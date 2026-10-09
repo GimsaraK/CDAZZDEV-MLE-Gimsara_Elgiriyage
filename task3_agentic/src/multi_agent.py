@@ -17,7 +17,7 @@ Tool access is enforced in three layers, not by prompt:
 Agent A has llm_sentiment but no news access. The headlines it scores arrive in Agent B's
 clarification request: the agents need each other to produce the sentiment evidence.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
 
 import json
 import operator
@@ -159,11 +159,14 @@ def call_structured(
     error: Optional[str] = None
     for _ in range(attempts):
         try:
+            # unwrap_structured raises if the model's output did not parse into `schema`.
             instance, model_name = unwrap_structured(model.invoke(messages), schema)
             return instance, model_name, None
         except Exception as exc:  # noqa: BLE001 - repair once, then let the caller fall back
             error = safe_error(exc)
             logger.warning("%s step failed: %s", schema.__name__, error)
+            # Next attempt sees the original request plus the error, so the model can correct itself.
+            # A new list is built each time (not .append) so the caller's list is never modified.
             messages = [*messages, HumanMessage(content=repair_template.format(error=error))]
     return None, None, error
 
@@ -173,6 +176,8 @@ def _json(model: BaseModel) -> str:
 
 
 def _last(handoffs: Sequence[AgentMessage], kind: str) -> Optional[AgentMessage]:
+    # Each node reads its input from the handoff log (newest message of that kind), never from another
+    # agent's state directly: every piece of data an agent receives came through a validated message.
     for message in reversed(handoffs):
         if message.kind == kind:
             return message
@@ -185,6 +190,7 @@ def writer_evidence(ctx: SessionContext) -> Dict[str, Any]:
     news = ctx.results_for("get_news", agent=B)
     if news:
         evidence["headlines"] = [h.title for h in news[0].result.data.headlines]
+    # Flatten the hits of B's latest few searches into one list (nested comprehension: records, then hits).
     hits = [hit for record in ctx.results_for("web_search", agent=B)[: config.DIGEST_RESULTS_PER_TOOL] for hit in record.result.data.hits]
     if hits:
         evidence["web_results"] = [{"title": h.title, "snippet": h.snippet, "url": h.url} for h in hits]
@@ -203,6 +209,8 @@ def fallback_request(ctx: SessionContext, brief: Optional[DataBrief]) -> Clarifi
             why_needed="The brief has no sentiment score, and the market-sentiment section needs one.",
             headlines=titles[: config.MAX_SENTIMENT_HEADLINES],
         )
+    # No headlines to offer: ask for a volatility window the brief does not have yet (first of 20/60/252
+    # that differs from the brief's), so the answer adds information.
     have = brief.volatility.window if brief and brief.volatility else None
     window = next(w for w in config.VOL_COMPARISON_WINDOWS if w != have)
     return ClarificationRequest(
@@ -264,7 +272,11 @@ def build_pipeline_graph(
     analyst_system = prompts.ANALYST_SYSTEM.format(today=today, ticker=ctx.ticker)
     writer_system = prompts.WRITER_SYSTEM.format(today=today, ticker=ctx.ticker)
 
+    # The four node functions below are closures: they share ctx, models, toolkit_a, query and observer
+    # from this enclosing function, so the graph state only carries what changes between steps.
+
     def emit(message: AgentMessage) -> AgentMessage:
+        # Show the handoff live (notebook printer), then return it so the caller can store it in the state.
         observer.on_handoff(message)
         return message
 
@@ -280,12 +292,17 @@ def build_pipeline_graph(
             tools=list(config.AGENT_A_TOOLS),
         )
         task_message = emit(AgentMessage.wrap(ORCHESTRATOR, A, "task", task, summary=f"Research {ctx.ticker}: quantitative part"))
+        # The receiving side re-validates the payload, exactly as it would for a message from another process.
         received = task_message.open(AnalystTask)
         history = [HumanMessage(content=prompts.ANALYST_TASK.format(task_json=_json(received)))]
+        # A's own ReAct loop with only A's three tools; its model decides which to call and when to stop.
         loop = build_react_loop(models.analyst_agent, tools_a, analyst_system, config.ANALYST_MAX_ROUNDS)
+        # on_message prints each of A's turns live, labelled with A's name.
         out = run_react_loop(loop, history, on_message=lambda m: observer.on_message(A, m))
         events = [note(f"{A}: {e}") for e in out.get("events", [])]
 
+        # The brief's numbers come straight from A's successful tool results (code, not the LLM), then
+        # A's LLM writes only the interpretation of those numbers.
         numbers = build_brief_numbers(ctx, A)
         interpretation, model_name, error = call_structured(
             models.analyst_brief,
@@ -303,6 +320,8 @@ def build_pipeline_graph(
             events.append(note(f"{A}: brief interpretation failed ({error}); sending numbers only"))
         brief = merge_interpretation(numbers, interpretation, model_name)
         brief_message = emit(AgentMessage.wrap(A, B, "data_brief", brief, summary=_brief_summary(brief)))
+        # The returned dict is merged into the graph state. "handoffs" and "events" have an add reducer,
+        # so these lists are appended to the log; the other keys simply overwrite.
         return {
             "analyst_messages": out["messages"],
             "brief": brief,
@@ -312,11 +331,14 @@ def build_pipeline_graph(
 
     def writer_research(state: PipelineState) -> Dict[str, Any]:
         brief = _last(state["handoffs"], "data_brief").open(DataBrief)
+        # B starts a fresh conversation of its own: the query plus A's brief. It never sees A's messages.
         history = [HumanMessage(content=prompts.WRITER_TASK.format(query=query, brief_json=_json(brief)))]
         loop = build_react_loop(models.writer_agent, tools_b, writer_system, config.WRITER_MAX_ROUNDS)
         out = run_react_loop(loop, history, on_message=lambda m: observer.on_message(B, m))
         events = [note(f"{B}: {e}") for e in out.get("events", [])]
 
+        # The critique step: B's LLM must produce exactly one ClarificationRequest (structured output),
+        # choosing what to ask from the gaps it sees in the brief and its own research.
         request, _, error = call_structured(
             models.writer_request,
             [
@@ -344,7 +366,10 @@ def build_pipeline_graph(
 
     def analyst_clarify(state: PipelineState) -> Dict[str, Any]:
         request = _last(state["handoffs"], "clarification_request").open(ClarificationRequest)
+        # Remember where the tool history stands now: only tool calls made *after* this point count as
+        # A's answer to the request (build_response(..., since) looks only at those).
         since = ctx.history_length()
+        # A continues its own earlier conversation, so it still has its first-phase tool results in context.
         previous = list(state.get("analyst_messages") or [])
         history = [*previous, HumanMessage(content=prompts.ANALYST_CLARIFY.format(request_json=_json(request)))]
         # The budget counts A's earlier rounds too, so this phase gets ANALYST_CLARIFY_ROUNDS new ones.
@@ -353,6 +378,8 @@ def build_pipeline_graph(
         out = run_react_loop(loop, history, on_message=lambda m: observer.on_message(A, m))
         events = [note(f"{A}: {e}") for e in out.get("events", [])]
 
+        # A's text answer is its last reply in this phase (messages after the request); the typed values
+        # in the response are filled from its new tool results, not from that text.
         answer = last_agent_notes(out["messages"][len(history):], config.CLARIFICATION_ANSWER_MAX_CHARS)
         response = build_response(ctx, request, answer, since, A)
         if response.status == "failed":
@@ -378,6 +405,9 @@ def build_pipeline_graph(
         error: Optional[str] = None
         issues: List[str] = []
         revisions = 0
+        # Write -> check -> (if issues) write again with the issues listed in the prompt. Two separate repair
+        # mechanisms are in play: call_structured repairs invalid JSON, this loop repairs a valid report
+        # that fails the content checks (evidence, hedge numbers, use of A's answer).
         for attempt in range(1 + config.FINAL_REPORT_REPAIR_ATTEMPTS):
             previous = prompts.REPORT_PREVIOUS_ISSUES.format(issues="\n".join(f"- {i}" for i in issues)) if issues else ""
             candidate, candidate_model, error = call_structured(
@@ -395,10 +425,12 @@ def build_pipeline_graph(
                 1 + config.REPORT_REPAIR_ATTEMPTS,
             )
             if candidate is None:
+                # No usable report this round. If an earlier round produced one, keep it (with its issues).
                 if report is None:
                     issues = [f"The report could not be produced ({error})."]
                 break
             report, model_name = candidate, candidate_model
+            # 3A's evidence checks plus the 3B check that B actually used the value A sent back.
             issues = check_report(report, ctx) + check_incorporation(report, response)
             if not issues:
                 break
@@ -454,12 +486,15 @@ def run_multi_agent(
     toolkits = build_agent_toolkits(ctx)
     toolkit_a, tools_a = toolkits[A]
     _, tools_b = toolkits[B]
+    # Recorded for the notebook: the exact tool names each agent's model was bound to (enforcement layer 1).
     bound = {A: [t.name for t in tools_a], B: [t.name for t in tools_b]}
     state: Dict[str, Any] = {"handoffs": [], "events": []}
     error: Optional[str] = None
     try:
         models = models or default_pipeline_models(tools_a, tools_b)
         graph = build_pipeline_graph(ctx, models, toolkit_a, tools_a, tools_b, query, observer)
+        # stream(..., "values") yields the full state after every node. Keeping only the latest one means
+        # that if a later node crashes, `state` still holds everything produced up to that point.
         for state in graph.stream({"handoffs": [], "events": []}, stream_mode="values"):
             pass
     except Exception as exc:  # noqa: BLE001 - the notebook must always get a result object

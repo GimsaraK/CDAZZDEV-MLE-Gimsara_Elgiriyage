@@ -7,7 +7,7 @@ retry-after); the next model is used only when that one still fails.
 llm_sentiment reuses Task 1's headline scorer, which takes Task 1 ChatClients. The same
 model order is given to it through ModelChainClient.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
 
 import os
 from typing import Any, Dict, List, Optional, Sequence, Set, Type
@@ -105,6 +105,8 @@ class FallbackChain(Runnable):
         self.skipped: Set[str] = skipped if skipped is not None else set()
 
     def invoke(self, input: Any, config: Any = None, **kwargs: Any) -> Any:
+        # Implementing invoke() is all LangChain needs: the graph calls chain.invoke(messages) as it would
+        # on a single model. Each model already retried its own short 429s inside its SDK before failing here.
         errors: List[str] = []
         for name, runnable in zip(self.names, self.runnables):
             if name in self.skipped:
@@ -115,9 +117,12 @@ class FallbackChain(Runnable):
                 message = safe_error(exc)
                 errors.append(f"{name}: {message}")
                 logger.warning("Model %s failed: %s", name, message)
+                # A daily cap will not reset during this run, so stop wasting retries on this model.
+                # `skipped` is a set shared by every chain in the session, so all agents skip it.
                 if DAILY_LIMIT_REASON in message:
                     self.skipped.add(name)
                     logger.warning("%s skipped for the rest of this session (daily limit)", name)
+        # Every model failed (or was skipped): raise one error that lists each model's reason.
         raise AllModelsFailed("; ".join(errors) or "every model is skipped for this session (daily limits)")
 
 
@@ -176,6 +181,8 @@ class ModelChainClient:
         return f"{self.name}/{self.last_model}" if self.last_model else self.name
 
     def complete(self, messages: List[Dict[str, str]], max_tokens: int, response_format: Dict[str, str]) -> str:
+        # Same idea as FallbackChain, but with Task 1's simpler client interface (complete() returns text),
+        # because llm_sentiment reuses Task 1's scorer, which calls client.complete(...).
         errors: List[str] = []
         for client in self.clients:
             if client.model in self.skipped:
@@ -185,6 +192,8 @@ class ModelChainClient:
             except Exception as exc:  # noqa: BLE001 - try the next model of this provider
                 message = safe_error(exc)
                 errors.append(f"{client.model}: {message}")
+                # Task 1's client turns every 429 into "rate limited (HTTP 429)" after its own retries,
+                # so a 429 reaching this point is treated as the daily cap.
                 if "429" in message or "rate limit" in message.lower():
                     self.skipped.add(client.model)
                     logger.warning("%s skipped for this session after repeated 429s", client.model)

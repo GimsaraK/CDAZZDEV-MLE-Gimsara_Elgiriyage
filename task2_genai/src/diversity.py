@@ -29,6 +29,7 @@ def length_stats(lengths: Sequence[int]) -> Dict[str, float]:
 
     def _at(fraction: float) -> float:
         # Nearest-rank on the sorted list. Fine for a few hundred rows.
+        # fraction * (n - 1) is the position of that percentile; min/max clamp it inside the list.
         index = min(len(ordered) - 1, max(0, int(round(fraction * (len(ordered) - 1)))))
         return float(ordered[index])
 
@@ -47,6 +48,7 @@ def keyword_counts(texts: Sequence[str], top_n: int = 20) -> List[Dict[str, int]
     counts: Counter = Counter()
     for text in texts:
         for token in tokens(text):
+            # Skip filler words and 1-2 letter tokens so the chart shows topic words, not "the" or "is".
             if token in config.STOPWORDS or len(token) < 3:
                 continue
             counts[token] += 1
@@ -72,6 +74,7 @@ def write_diversity_plots(report: Dict, output_dir: Path) -> Dict[str, str]:
     """Save the histogram and the two bar charts. Returns the file names."""
     import matplotlib
 
+    # "Agg" renders to files without needing a display, so this works on servers and in tests.
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -80,6 +83,7 @@ def write_diversity_plots(report: Dict, output_dir: Path) -> Dict[str, str]:
 
     # Length histogram. Bins of 10 words keep a 40-180 range readable.
     fig, axis = plt.subplots(figsize=(7, 3.5))
+    # Bin edges 0, 10, 20, ... up past the longest scenario; "+ [10]" keeps max() valid if the list is empty.
     axis.hist(report["lengths"], bins=range(0, max(report["lengths"] + [10]) + 10, 10), color="#2c5f8a")
     axis.set_title("Scenario length (words)")
     axis.set_xlabel("Words in the user turn")

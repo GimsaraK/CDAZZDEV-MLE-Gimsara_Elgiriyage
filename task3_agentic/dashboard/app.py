@@ -6,7 +6,7 @@ Run from the repository root:
 
 Everything is read from the two log files; nothing calls an LLM or a data source.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
 
 import sys
 from pathlib import Path
@@ -49,6 +49,8 @@ if trace.empty:
 
 with st.sidebar:
     st.header("Filters")
+    # dict.fromkeys de-duplicates while keeping first-seen order, so sessions are listed oldest first
+    # (sorted() would order the random-looking session ids alphabetically instead).
     sessions = st.multiselect("Session", list(dict.fromkeys(trace["session_id"])))
     agents = st.multiselect("Agent", sorted(trace["agent"].dropna().unique()))
     tools = st.multiselect("Tool", sorted(trace["tool"].dropna().unique()))
@@ -71,18 +73,19 @@ session_ids = list(dict.fromkeys(view["session_id"]))
 chosen = st.selectbox("Session for the timeline", session_ids) if session_ids else None
 if chosen:
     chart_data = timeline(view[view["session_id"] == chosen])
-    chart = (
-        alt.Chart(chart_data)
-        .mark_bar()
-        .encode(
-            x=alt.X("start_s:Q", title="seconds since the session's first call"),
-            x2="end_s:Q",
-            y=alt.Y("label:N", sort=None, title=None),
-            color=alt.Color("agent:N"),
-            tooltip=["tool", "agent", "status", "duration_ms", "args"],
-        )
-        .properties(height=max(120, 28 * len(chart_data)))
+    # A Gantt-style chart: each call is one horizontal bar from x (its start) to x2 (its end), on its own
+    # row (y). sort=None keeps the rows in call order, and the height grows with the number of calls.
+    # labelOverlap=False stops Vega-Lite hiding every other row label when rows are close together.
+    x_title = "seconds since the session's first call"
+    base = alt.Chart(chart_data).encode(
+        y=alt.Y("label:N", sort=None, title=None, axis=alt.Axis(labelOverlap=False, labelLimit=0)),
+        color=alt.Color("agent:N"),
+        tooltip=["tool", "agent", "status", "duration_ms", "args"],
     )
+    bars = base.mark_bar().encode(x=alt.X("start_s:Q", title=x_title), x2="end_s:Q")
+    # A tick at each call's start, so a call of a few milliseconds is still visible next to one of 30 s.
+    starts = base.mark_tick(thickness=3).encode(x=alt.X("start_s:Q", title=x_title))
+    chart = (bars + starts).properties(height=max(150, 36 * len(chart_data)))
     st.altair_chart(chart)
 
 st.subheader("Tool calls")
@@ -93,12 +96,14 @@ for _, row in view.tail(MAX_EXPANDERS).iterrows():
         st.code(row["args"], language="json")
         st.markdown(f"**Output** (first {config.TRACE_OUTPUT_MAX_CHARS} characters, as logged)")
         st.code(row["output"], language="json")
-        if row["error"]:
+        # Calls without an error have NaN here (pandas fills the gap), and NaN is truthy, so test for real text.
+        if isinstance(row["error"], str) and row["error"]:
             st.error(row["error"])
 
 st.subheader("Session events")
 if events.empty:
     st.info("No cache or memory events logged yet.")
 else:
+    # Events have no agent/tool/status columns, so only the session filter applies to them.
     shown = events if not sessions else events[events["session_id"].isin(sessions)]
     st.dataframe(shown, hide_index=True)

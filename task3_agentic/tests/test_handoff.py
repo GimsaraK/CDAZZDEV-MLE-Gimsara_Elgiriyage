@@ -1,5 +1,5 @@
 """3B handoff schemas: validation, code-filled numbers, and the incorporation check."""
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
 
 import pytest
 from pydantic import ValidationError

@@ -163,7 +163,7 @@ Every prompt given to an AI assistant during this assessment, in chronological o
 ### Entry 13 - Task 3A implementation planning
 
 ```
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Now analyze the specification again @CDAZZDEV_Senior_MLE_Assessment_2026.pdf thoroughly. Then call EnterPlanMode to create a comprehensive plan for Task 3A. Make sure all requirements in the @SUBMISSION_CHECKLIST.md for this task is covered in the plan including the marking rubric for this task. Call AskUserQuestion for all architectural judgment and engineering decisions.'
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Now analyze the specification again @CDAZZDEV_Senior_MLE_Assessment_2026.pdf thoroughly. Then call EnterPlanMode to create a comprehensive plan for Task 3A. Make sure all requirements in the @SUBMISSION_CHECKLIST.md for this task is covered in the plan including the marking rubric for this task. Call AskUserQuestion for all architectural judgment and engineering decisions.'
 ```
 
 - Scope: Task 3
@@ -174,7 +174,7 @@ Every prompt given to an AI assistant during this assessment, in chronological o
 ### Entry 14 - Task 3A implementation
 
 ```
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)'
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)'
 ```
 
 - Scope: Task 3
@@ -186,7 +186,7 @@ Every prompt given to an AI assistant during this assessment, in chronological o
 ### Entry 15 - Task 3B implementation planning
 
 ```
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Now analyze the specification again @CDAZZDEV_Senior_MLE_Assessment_2026.pdf thoroughly. Then call EnterPlanMode to create a comprehensive plan for Task 3B. Make sure all requirements in the @SUBMISSION_CHECKLIST.md for this task is covered in the plan including the marking rubric for this task. Call AskUserQuestion for all architectural judgment and engineering decisions.'
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Now analyze the specification again @CDAZZDEV_Senior_MLE_Assessment_2026.pdf thoroughly. Then call EnterPlanMode to create a comprehensive plan for Task 3B. Make sure all requirements in the @SUBMISSION_CHECKLIST.md for this task is covered in the plan including the marking rubric for this task. Call AskUserQuestion for all architectural judgment and engineering decisions.'
 ```
 
 - Scope: Task 3
@@ -197,7 +197,7 @@ Every prompt given to an AI assistant during this assessment, in chronological o
 ### Entry 16 - Task 3B implementation
 
 ```
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan'
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan'
 ```
 
 - Scope: Task 3
@@ -208,7 +208,7 @@ Every prompt given to an AI assistant during this assessment, in chronological o
 ### Entry 17 - Task 3C implementation planning
 
 ```
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Now analyze the specification again @CDAZZDEV_Senior_MLE_Assessment_2026.pdf thoroughly. Then call EnterPlanMode to create a comprehensive plan for Task 3C. Make sure all requirements in the @SUBMISSION_CHECKLIST.md for this task is covered in the plan including the marking rubric for this task. Call AskUserQuestion for all architectural judgment and engineering decisions.'
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Now analyze the specification again @CDAZZDEV_Senior_MLE_Assessment_2026.pdf thoroughly. Then call EnterPlanMode to create a comprehensive plan for Task 3C. Make sure all requirements in the @SUBMISSION_CHECKLIST.md for this task is covered in the plan including the marking rubric for this task. Call AskUserQuestion for all architectural judgment and engineering decisions.'
 ```
 
 - Scope: Task 3
@@ -219,7 +219,7 @@ Every prompt given to an AI assistant during this assessment, in chronological o
 ### Entry 18 - Task 3C implementation
 
 ```
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3C plan'
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3C plan'
 ```
 
 - Scope: Task 3

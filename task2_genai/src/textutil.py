@@ -25,8 +25,10 @@ _WORD = re.compile(r"[a-z0-9]+")
 def to_ascii(text: str) -> str:
     """Fold common punctuation to ASCII and drop anything that is still not ASCII."""
     converted = text or ""
+    # First map "smart" punctuation to its ASCII look-alike, so meaning is kept (e.g. an en dash becomes "-").
     for source, target in _PUNCTUATION.items():
         converted = converted.replace(source, target)
+    # Then drop whatever is left outside ASCII (code points >= 128), e.g. emoji or accented letters.
     return "".join(ch for ch in converted if ord(ch) < 128)
 
 
@@ -37,6 +39,8 @@ def word_count(text: str) -> int:
 
 def scenario_key(text: str) -> str:
     """Hash of the scenario after case and whitespace are normalized. Exact-dup key."""
+    # split() + join collapses any run of spaces, tabs or newlines into one space, so two scenarios
+    # that differ only in case or spacing produce the same hash.
     normalized = " ".join((text or "").lower().split())
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 

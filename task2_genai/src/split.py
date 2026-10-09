@@ -23,9 +23,11 @@ def split_rows(
         raise ValueError(
             f"split sizes {train_size}+{val_size}+{test_size} do not equal {len(rows)} rows"
         )
+    # Bucket rows by topic so each topic can be guaranteed a place in every split.
     grouped: Dict[str, List[dict]] = defaultdict(list)
     for row in rows:
         grouped[row["topic"]].append(row)
+    # A private Random(seed) makes the split reproducible without touching the global random state.
     rng = random.Random(seed)
     for topic in grouped:
         rng.shuffle(grouped[topic])
@@ -50,6 +52,7 @@ def split_rows(
     need_test = test_size - len(test)
     if need_val < 0 or need_test < 0:
         raise ValueError("more topics than validation or test slots")
+    # The shuffled pool is cut into three consecutive slices: [val | test | everything else -> train].
     val.extend(pool[:need_val])
     test.extend(pool[need_val : need_val + need_test])
     train.extend(pool[need_val + need_test :])

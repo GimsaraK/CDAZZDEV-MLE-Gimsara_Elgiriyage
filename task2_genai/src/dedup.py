@@ -14,9 +14,13 @@ from .textutil import scenario_key
 
 def char_ngrams(text: str, n: int = config.NEAR_DUP_NGRAM) -> Set[str]:
     """Overlapping character n-grams after whitespace is removed and case is folded."""
+    # Removing all whitespace makes the comparison about the characters, not the spacing.
     collapsed = "".join((text or "").lower().split())
+    # A text shorter than n has no full n-gram: use the whole text as its only "gram".
     if len(collapsed) < n:
         return {collapsed} if collapsed else set()
+    # Slide a window of n characters one step at a time: "abcdef" with n=5 -> {"abcde", "bcdef"}.
+    # A set (not a list) ignores repeats, which is what Jaccard similarity expects.
     return {collapsed[i : i + n] for i in range(len(collapsed) - n + 1)}
 
 
@@ -24,6 +28,7 @@ def jaccard(left: Set[str], right: Set[str]) -> float:
     """Intersection over union. Two empty sets count as a match."""
     if not left and not right:
         return 1.0
+    # Shared n-grams divided by all distinct n-grams: 1.0 = same text, 0.0 = nothing in common.
     union = left | right
     if not union:
         return 0.0
@@ -48,8 +53,11 @@ class DuplicateIndex:
 
     def reject_reason(self, scenario: str) -> Optional[str]:
         """'exact', 'near', or None. Does not record the drop; see consider()."""
+        # Cheap check first: an identical (normalised) scenario is caught by its hash in O(1).
         if scenario_key(scenario) in self.exact:
             return "exact"
+        # Then compare against every accepted scenario. This is O(n) per candidate, which is fine
+        # for a few hundred rows; a much larger dataset would need MinHash/LSH instead.
         fresh = char_ngrams(scenario, self.n)
         for previous in self.grams:
             if jaccard(fresh, previous) >= self.threshold:

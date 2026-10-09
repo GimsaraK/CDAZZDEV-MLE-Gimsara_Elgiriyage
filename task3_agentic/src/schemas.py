@@ -3,7 +3,7 @@
 Every tool returns ToolResult[<payload>]. The agent sees it as compact JSON with a
 status of ok / empty / error, and a hint when something went wrong.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
 
 import json
 from typing import Dict, Generic, List, Literal, Optional, TypeVar
@@ -42,6 +42,8 @@ class ToolResult(BaseModel, Generic[PayloadT]):
         text = json.dumps(self.model_dump(mode="json", exclude_none=True), separators=(",", ":"), default=str)
         if len(text) <= max_chars:
             return text
+        # Cut early enough that text + marker is exactly max_chars. The marker tells the agent the result
+        # was cut, since the cut JSON is no longer complete.
         return text[: max_chars - len(config.TRUNCATION_MARKER)] + config.TRUNCATION_MARKER
 
 
@@ -223,7 +225,7 @@ class ResearchReport(BaseModel):
     hedge: HedgeStrategy
     data_gaps: List[str] = Field(default_factory=list, description="Evidence that could not be gathered, and why.")
     # 3B only (the single agent in 3A leaves it empty): how Agent A's answer to the clarification changed the report.
-    # AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
+    # AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16)
     clarification_used: Optional[str] = Field(
         default=None,
         description="Multi-agent runs only: what was asked of the Data Analyst, the values it returned, "

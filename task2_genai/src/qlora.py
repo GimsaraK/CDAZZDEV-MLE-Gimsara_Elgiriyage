@@ -37,7 +37,10 @@ def upcast_trainable_to_float32(model) -> int:
 
     changed = 0
     for param in model.parameters():
+        # requires_grad is True only for the LoRA matrices; the frozen 4-bit base is skipped.
         if param.requires_grad and param.dtype != torch.float32:
+            # Replacing .data changes the dtype in place without creating a new Parameter,
+            # so the optimizer and PEFT still point at the same object.
             param.data = param.data.to(torch.float32)
             changed += 1
     return changed
@@ -71,6 +74,8 @@ def load_student(target_modules):
         # The layers that stay unquantized load in float16, not the config's bfloat16.
         **float16_kwargs(torch),
     )
+    # Readies a quantized model for training: freezes the base weights, casts layer norms to float32
+    # for stability, and turns on gradient checkpointing (recompute activations instead of storing them).
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     adapter = LoraConfig(
         r=tc.LORA_RANK,
@@ -80,6 +85,8 @@ def load_student(target_modules):
         task_type="CAUSAL_LM",
         target_modules=list(target_modules),
     )
+    # Wraps each target module with small trainable LoRA matrices A and B (update = B @ A, scaled by alpha/r);
+    # only these are trained.
     model = get_peft_model(model, adapter)
     upcast_trainable_to_float32(model)
     return model, tokenizer
@@ -96,10 +103,14 @@ def completion_labels(input_ids, template_ids):
     """
     input_ids = [int(token) for token in input_ids]
     template_ids = [int(token) for token in template_ids]
+    # Start with every position masked (-100 is the label PyTorch's cross-entropy ignores).
     labels = [IGNORE_INDEX] * len(input_ids)
     width = len(template_ids)
+    # Scan backwards for the token sequence of "<|im_start|>assistant\n", so the *last* assistant
+    # header is found (the answer is always the final turn).
     for start in range(len(input_ids) - width, -1, -1):
         if input_ids[start:start + width] == template_ids:
+            # Unmask everything after the header: the model is scored only on the JSON answer.
             begin = start + width
             labels[begin:] = input_ids[begin:]
             break
@@ -123,13 +134,16 @@ def make_completion_collator(tokenizer, max_length):
     pad_id = tokenizer.pad_token_id
 
     def collate(features):
+        # Truncate each row to max_length, then right-pad every row to the longest one in the batch.
         rows = [[int(token) for token in feature["input_ids"]][:max_length] for feature in features]
         width = max(len(row) for row in rows)
         input_ids, attention, labels = [], [], []
         for row in rows:
             gap = width - len(row)
             input_ids.append(row + [pad_id] * gap)
+            # 1 = a real token the model attends to, 0 = padding it must ignore.
             attention.append([1] * len(row) + [0] * gap)
+            # Padding is also masked out of the loss, like the prompt.
             labels.append(completion_labels(row, template_ids) + [IGNORE_INDEX] * gap)
         return {
             "input_ids": torch.tensor(input_ids, dtype=torch.long),
@@ -223,6 +237,8 @@ def make_trainer(model, tokenizer, max_seq_length, output_dir: Path):
     elif "max_seq_length" in config_params:
         kwargs["max_seq_length"] = max_seq_length
         length_on_config = True
+    # If SFTConfig takes **kwargs it accepts every key; otherwise pass only the keys its signature names,
+    # so an argument this TRL version does not know cannot crash the constructor.
     accepts_any = any(param.kind == inspect.Parameter.VAR_KEYWORD for param in config_params.values())
     if accepts_any:
         args = SFTConfig(**kwargs)
@@ -298,6 +314,8 @@ def merge_and_push(adapter_dir: Path, save_dir: Path, token: str) -> str:
         device_map="auto",
         **float16_kwargs(torch),
     )
+    # Attach the trained adapter to the float16 base, then fold it in: W_merged = W + (alpha/r) * B @ A.
+    # The result is a plain transformers model with no PEFT dependency at inference time.
     merged = PeftModel.from_pretrained(base, str(adapter_dir))
     merged = merged.merge_and_unload()
     save_dir.mkdir(parents=True, exist_ok=True)

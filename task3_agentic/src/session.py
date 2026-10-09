@@ -4,8 +4,8 @@ The agent only sees compact tool JSON. The session keeps the full objects (for e
 the 3-year OHLCV frame) so later tools and the report check can use them without
 another network call.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16): per-agent records
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3A plan (the plan approved in Entry 13)', Date: 2026-10-09 (see CITATIONS.md Entry 14)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3B plan', Date: 2026-10-09 (see CITATIONS.md Entry 16): per-agent records
 
 import threading
 import uuid
@@ -51,6 +51,7 @@ class FaultConfig:
     def check(self, tool: str) -> None:
         """Count this call and raise InjectedFault if the tool is configured to fail now."""
         mode = self.modes.get(tool)
+        # Count every call to this tool (1st, 2nd, ...), so "first" and "n" modes know which call this is.
         self._calls[tool] = self._calls.get(tool, 0) + 1
         if mode is None:
             return
@@ -131,6 +132,9 @@ class SessionContext:
         self, tool: str, ok_only: bool = True, agent: Optional[str] = None, since: int = 0
     ) -> List[ToolCallRecord]:
         """Records for one tool, newest first. `agent` filters by caller; `since` skips the first n history entries."""
+        # Filters, in order: this tool only; never a call the access guard refused (it returned no data);
+        # only successes unless ok_only=False; only the given agent's calls when one is named.
+        # The list is reversed at the end so index [0] is always the most recent call.
         with self._lock:
             records = [
                 r
@@ -150,6 +154,8 @@ class SessionContext:
         """Tools that never returned ok this session (only errors or empty results). Denied calls don't count."""
         with self._lock:
             attempted = {r.tool for r in self.history if not r.denied}
+        # A tool that failed once but later succeeded is not a failure; only "tried, never worked" remains.
+        # (succeeded_tools takes the lock itself, so it is called after the `with` block is released.)
         return attempted - self.succeeded_tools()
 
     def tool_sequence(self, agent: Optional[str] = None) -> List[str]:
@@ -171,6 +177,8 @@ class SessionContext:
                 if not record.result.ok or record.tool not in ("get_news", "web_search"):
                     continue
                 data = record.result.data
+                # get_news results have `headlines` and web_search results have `hits`; getattr with a []
+                # default lets one loop read whichever field the record has.
                 titles += [h.title for h in getattr(data, "headlines", [])]
                 titles += [h.title for h in getattr(data, "hits", [])]
         return titles

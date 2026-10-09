@@ -129,8 +129,11 @@ def losses_by_epoch(log_history):
     for row in log_history:
         if "epoch" not in row:
             continue
+        # The Trainer logs fractional epochs (e.g. 0.98 or 1.0); rounding files each entry under its epoch.
         epoch = int(round(float(row["epoch"])))
         slot = grouped.setdefault(epoch, {})
+        # When an epoch has several training-loss logs, the later one overwrites the earlier one,
+        # so the table keeps the loss at the end of the epoch.
         if "eval_loss" in row:
             slot["val_loss"] = float(row["eval_loss"])
         elif "loss" in row:

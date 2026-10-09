@@ -182,7 +182,15 @@ streamlit run task3_agentic/dashboard/app.py
 
 The data functions (`src/dashboard_data.py`) are tested offline. Nothing in the dashboard calls an LLM or a data source.
 
-_Screenshot to add: run the command above after a notebook execution, save the page as `task3_agentic/docs/dashboard.png`, and embed it here._
+Screenshots from the committed `agent_trace.jsonl` (the 2026-10-09 Colab run: 28 tool calls in 5 sessions).
+
+The overview shows the KPIs, the per-session table, and the timeline of the two-agent pipeline run (`4de1279b4725`). Agent A fetches prices and volatility, Agent B fetches news and runs a search, then A scores B's headlines in the critique loop:
+
+![Dashboard overview: KPIs, sessions and the two-agent timeline](docs/dashboard.png)
+
+Each tool call expands to its arguments, its logged output (first 200 characters) and, for a failed call, the error:
+
+![Dashboard tool calls: arguments, logged output and error](docs/dashboard_calls.png)
 
 ## How to Run
 

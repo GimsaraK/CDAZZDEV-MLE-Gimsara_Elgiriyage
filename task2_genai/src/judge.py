@@ -77,6 +77,9 @@ def judge_one(clients, system: str, user: str) -> Dict:
         try:
             raw = client.complete(messages)
             verdict = parse_verdict(raw)
+        # Two failure kinds, handled differently:
+        #  - the judge answered but the JSON is wrong -> give the same judge one repair turn;
+        #  - the call itself failed (rate limit, outage)  -> move straight on to the next judge.
         except (json.JSONDecodeError, ValidationError) as exc:
             try:
                 raw = client.complete(_repair_messages(system, user, raw, str(exc)))
@@ -114,14 +117,18 @@ def judge_all(
     target = path or ec.JUDGE_SCORES_PATH
     pause = ec.JUDGE_MIN_INTERVAL_SECONDS if interval is None else interval
     system = judge_system(manual)
+    # Results are keyed by (test row id, which model answered), e.g. (7, "finetuned").
+    # Only successfully judged rows are reused; unjudged ones get another try on a re-run.
     cached = {(row["id"], row["model"]): row for row in _read_jsonl(target) if row.get("status") == "judged"}
     rows = dict(cached)
+    # The output order is fixed (row by row, base then fine-tuned) however many rows were cached.
     order = [(record["id"], key) for record in records for key in ec.MODEL_KEYS if key in record]
     called = False
     for record in records:
         for key in ec.MODEL_KEYS:
             if key not in record or (record["id"], key) in cached:
                 continue
+            # Pause between calls (not before the first) to stay under the free tier's requests-per-minute.
             if called:
                 sleep(pause)
             called = True

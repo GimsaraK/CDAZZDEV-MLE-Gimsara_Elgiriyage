@@ -8,7 +8,7 @@ accepted with warnings) is written atomically for the next run. A failed run is 
 A corrupt or out-of-date file counts as a miss, never as an error. The single-agent (3A) and
 multi-agent (3B) pipelines share this layer, but a lookup only matches its own pipeline.
 """
-# AI-ASSISTED: Claude Code (claude-opus-5-5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
+# AI-ASSISTED: Claude Code (claude-sonnet-5.5), Prompt: 'Implement the Task 3C plan', Date: 2026-10-09 (see CITATIONS.md Entry 18)
 
 import json
 import os
@@ -97,6 +97,8 @@ def load_cached(
         logger.warning("Ignoring unreadable cache file %s: %s", path.name, str(exc).splitlines()[0])
         _log(events, session_id, "cache_corrupt", path=path.name, reason=type(exc).__name__)
         return None
+    # The file name already encodes ticker, date and pipeline, but the contents are checked too: a renamed
+    # or hand-copied file, or one written by an older schema version, must not be served as today's brief.
     expected = (config.CACHE_SCHEMA_VERSION, ticker.strip().upper(), pipeline, date or market_date())
     found = (brief.schema_version, brief.ticker, brief.pipeline, brief.cache_date)
     if found != expected:
@@ -109,12 +111,16 @@ def load_cached(
 def save_cached(brief: CachedBrief, path: Path) -> Path:
     """Write atomically: a temp file in the same folder, then os.replace, so a reader never sees half a file."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    # mkstemp creates a uniquely named temp file in the *same folder* (os.replace is only atomic within one
+    # filesystem). It returns an open OS-level handle plus the file name.
     handle, temp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.stem}.", suffix=".tmp")
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as temp:
             temp.write(brief.model_dump_json(indent=2))
+        # One atomic step: readers see either the old file or the complete new one, never a partial write.
         os.replace(temp_name, path)
     finally:
+        # Only true if something failed before the replace; never leave a stray .tmp file behind.
         if os.path.exists(temp_name):
             os.remove(temp_name)
     return path
@@ -142,8 +148,10 @@ def cached_research(
     started = time.perf_counter()
     date = date or market_date()
     path = cache_path(ctx.ticker, pipeline, date, cache_dir)
+    # Tool calls are counted as "history length after minus before", so a cache hit provably made zero.
     history_before = ctx.history_length()
 
+    # Step 1: look for today's file (unless the caller forces a fresh run).
     if force_refresh:
         _log(events, ctx.session_id, "cache_bypass", path=path.name, reason="force_refresh")
     else:
@@ -161,9 +169,12 @@ def cached_research(
             )
         _log(events, ctx.session_id, "cache_miss", path=path.name)
 
+    # Step 2: no usable cache, so run the pipeline. `runner` is a zero-argument function that runs the 3A
+    # agent or the 3B pipeline; the cache does not need to know which.
     run = runner()
     calls = ctx.history_length() - history_before
     final: FinalReport = run.final
+    # Step 3: cache only a run that produced a report. A failed run must not be served tomorrow as a "hit".
     if final.report is None:
         _log(events, ctx.session_id, "cache_skip", path=path.name, reason=f"run status {final.status}")
         return CacheOutcome(False, None, path, run, calls, round(time.perf_counter() - started, 3), "Run failed; nothing cached")
