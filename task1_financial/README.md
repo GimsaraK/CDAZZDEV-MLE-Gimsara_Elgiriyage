@@ -7,7 +7,7 @@ An automated equity research assistant. It ingests real market data and news, co
 | Part | Status |
 |---|---|
 | 1A - Financial data pipeline | Done |
-| 1B - LLM sentiment and signal reasoning | Done (local notebook run 2026-10-08) |
+| 1B - LLM sentiment and signal reasoning | Done (Colab notebook run 2026-10-09) |
 | Bonus - Report rendering | Done (Markdown + one-page HTML from the notebook run) |
 
 ## Contents
@@ -52,18 +52,20 @@ An automated equity research assistant. It ingests real market data and news, co
 ### Verification
 
 - **Unit tests:** `tests/test_indicators.py` checks every indicator against hand-computed values and the [StockCharts RSI worked example](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/relative-strength-index-rsi), plus edge cases (flat, monotonic, NaN input). The other test modules cover data cleaning, both yfinance news schemas, RSS parsing, curation, snapshot fallback, the P/E chain, the YTD and 52-week logic, the momentum thresholds, and a check that `src/` contains no hardcoded date strings.
-- **Independent cross-check:** the notebook compares our indicators with the open-source [`ta`](https://github.com/bukosabino/ta) library (validation only, never used in the pipeline). Over the last two years, every column matches exactly, except RSI, which agrees to within 1.4e-7.
+- **Independent cross-check:** the notebook compares our indicators with the open-source [`ta`](https://github.com/bukosabino/ta) library (validation only, never used in the pipeline). Over the last two years, every column matches exactly, except RSI, which agrees to within 1.1e-7.
 
-### Results (AAPL, run of 2026-10-08)
+### Results (AAPL, run of 2026-10-09)
+
+The notebook ran at 11:10 US/Eastern while the market was open, so the latest bar is the partial 2026-10-09 session and the current price is intraday.
 
 | Field | Value |
 |---|---|
-| Current price | 337.54 USD |
+| Current price | 334.15 USD (intraday, 2026-10-09) |
 | 52-week high / low | 345.34 / 243.42 (matches Yahoo's values) |
-| P/E (trailing) | 38.71 (forward 35.22) |
-| YTD return | +24.50% |
-| Momentum signal | Strong Bullish (score 0.7143) |
-| Headlines | 15 from Google News RSS (yfinance returned 0; listing / filing items filtered, per-publisher cap applied) |
+| P/E (trailing) | 38.32 (forward 34.85) |
+| YTD return | +23.25% |
+| Momentum signal | Bullish (score 0.4286: 5 bullish votes, 2 bearish from MACD vs signal and Bollinger %B) |
+| Headlines | 15 from Google News RSS (yfinance returned 0; 27 listing / filing items filtered, per-publisher cap removed 37) |
 
 The full summary dictionary is in [`outputs/AAPL_summary.json`](outputs/AAPL_summary.json) and the chart in [`outputs/AAPL_technical_chart.png`](outputs/AAPL_technical_chart.png).
 
@@ -90,13 +92,13 @@ The full summary dictionary is in [`outputs/AAPL_summary.json`](outputs/AAPL_sum
 
 `tests/test_llm.py` is offline. It checks the weighted-mean formula by hand, rejects bad schemas and justifications outside 3-5 sentences, repairs invalid JSON, falls back from Groq to OpenRouter, and returns a flagged Hold when both providers fail. The notebook's Part 1B cells call the live API when `GROQ_API_KEY` is set. Without it they print a skip message and continue.
 
-### Results (AAPL, run of 2026-10-08)
+### Results (AAPL, run of 2026-10-09)
 
 | Field | Value |
 |---|---|
-| Sentiment | Neutral, score -0.1382 (15 scored, 0 unscored) |
-| Signal | Hold (Groq, fallback=False), 4 sentences combining the SMA trend, a negative MACD histogram, Bollinger %B, and the news score |
-| Full pipeline | status `ok`; second pass Neutral -0.1315, Hold |
+| Sentiment | Neutral, score 0.0309 (15 scored, 0 unscored): negative iPhone 18 Pro demand headlines offset by positive AI and institutional-buying ones |
+| Signal | Hold (Groq, fallback=False), 4 sentences combining the SMA trend and golden cross, RSI, a negative MACD histogram, Bollinger %B, and the news score |
+| Full pipeline | status `ok`; second pass Neutral -0.0163, Hold |
 | Failure demo | Injected `{not json` was rejected by Pydantic, logged, and repaired on Groq |
 
 ## Bonus - Equity Research Brief
